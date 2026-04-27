@@ -793,14 +793,6 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   const wallRight=ox+W.len*sc;
   const wallBottomY=oy+W.h*sc;
 
-  // Pre-compute unique vertical lanes (nearest-axis only, deduplicated)
-  const _preNV=new Set();let _vLC=0;
-  sorted.forEach(o=>{
-    const fF=o.y,fC=W.h-o.y-o.h;
-    const uF=fF<=fC;const nearV=uF?fF:fC;
-    if(nearV>0){const key=(uF?'f':'c')+nearV;if(!_preNV.has(key)){_preNV.add(key);_vLC++;}}
-  });
-
   const drawnNearV=new Set();let vLane=0;
 
   sorted.forEach((o,i)=>{
@@ -813,21 +805,29 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
     // Colored outline ties object rect to its annotation lines
     c.save();c.strokeStyle=col;c.lineWidth=1.5;c.strokeRect(rx,ry,rw,rh);c.restore();
 
-    // Nearest horizontal wall — single dim to closer side, skip if touching a wall
+    // Nearest horizontal — near left → ABOVE wall, near right → BELOW wall
     const fromLeft=o.x,fromRight=W.len-o.x-o.w;
     const useLeft=fromLeft<=fromRight;
     const nearHDist=useLeft?fromLeft:fromRight;
     if(nearHDist>0){
       const nearHX1=useLeft?ox:rx+rw;
       const nearHX2=useLeft?rx:wallRight;
-      const nearHY=oy-22-lane*22;
-      fpDimLine(c,nearHX1,nearHY,nearHX2,nearHY,(useLeft?'←':'→')+' '+nearHDist+'mm',-1,col);
-      c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
-      c.beginPath();c.moveTo(nearHX1,oy);c.lineTo(nearHX1,nearHY);c.moveTo(nearHX2,oy);c.lineTo(nearHX2,nearHY);c.stroke();
-      c.setLineDash([]);c.restore();
+      if(useLeft){
+        const hY=oy-22-lane*22;
+        fpDimLine(c,nearHX1,hY,nearHX2,hY,'← '+nearHDist+'mm',-1,col);
+        c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
+        c.beginPath();c.moveTo(nearHX1,oy);c.lineTo(nearHX1,hY);c.moveTo(nearHX2,oy);c.lineTo(nearHX2,hY);c.stroke();
+        c.setLineDash([]);c.restore();
+      } else {
+        const hY=wallBottomY+22+lane*22;
+        fpDimLine(c,nearHX1,hY,nearHX2,hY,'→ '+nearHDist+'mm',-1,col);
+        c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
+        c.beginPath();c.moveTo(nearHX1,wallBottomY);c.lineTo(nearHX1,hY);c.moveTo(nearHX2,wallBottomY);c.lineTo(nearHX2,hY);c.stroke();
+        c.setLineDash([]);c.restore();
+      }
     }
 
-    // Nearest vertical — skip if touching a wall (same rule as horizontal)
+    // Nearest vertical — near floor → left of object (near bottom), near ceiling → right of wall
     const fromFloor=o.y,fromCeil=W.h-o.y-o.h;
     const useFloor=fromFloor<=fromCeil;
     const nearVDist=useFloor?fromFloor:fromCeil;
@@ -835,16 +835,17 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       const nearVKey=(useFloor?'f':'c')+nearVDist;
       if(!drawnNearV.has(nearVKey)){
         drawnNearV.add(nearVKey);
-        const vDimX=ox-22-vLane*22;
         if(useFloor){
-          fpDimLine(c,vDimX,ry+rh,vDimX,wallBottomY,nearVDist+'mm',1,col);
+          const fDimX=rx-14;
+          fpDimLine(c,fDimX,ry+rh,fDimX,wallBottomY,nearVDist+'mm',1,col);
           c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
-          c.beginPath();c.moveTo(ox,ry+rh);c.lineTo(vDimX,ry+rh);c.moveTo(ox,wallBottomY);c.lineTo(vDimX,wallBottomY);c.stroke();
+          c.beginPath();c.moveTo(rx,ry+rh);c.lineTo(fDimX,ry+rh);c.moveTo(rx,wallBottomY);c.lineTo(fDimX,wallBottomY);c.stroke();
           c.setLineDash([]);c.restore();
         } else {
-          fpDimLine(c,vDimX,oy,vDimX,ry,nearVDist+'mm',1,col);
+          const cDimX=wallRight+40+vLane*22;
+          fpDimLine(c,cDimX,oy,cDimX,ry,nearVDist+'mm',-1,col);
+          vLane++;
         }
-        vLane++;
       }
     }
 
@@ -862,7 +863,7 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   fpDimLine(c,ox,wallBottomY,wallRight,wallBottomY,W.d+'mm depth',-1,'#3a3a3a');
 
   // ── VERTICAL RULER (left) ──
-  const rulerX=ox-_vLC*22-48;
+  const rulerX=ox-48;
   c.save();c.strokeStyle='#252525';c.lineWidth=1;
   c.beginPath();c.moveTo(rulerX+10,oy);c.lineTo(rulerX+10,wallBottomY);c.stroke();
   const rStep=W.h>3000?1000:500;
@@ -882,7 +883,7 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   c.restore();
 
   // ── HORIZONTAL RULER (bottom) ──
-  const rulerBaseY=wallBottomY+48;
+  const rulerBaseY=wallBottomY+22+sorted.length*22+48;
   c.save();c.strokeStyle='#252525';c.lineWidth=1;
   c.beginPath();c.moveTo(ox,rulerBaseY-10);c.lineTo(wallRight,rulerBaseY-10);c.stroke();
   const xStep=W.len>4000?1000:500;
@@ -990,7 +991,7 @@ function renderAllPagesMaterialList(c,cvW,cvH){
   drawSection(wallMats,t('wallElem'));
   drawSection(floorMats,t('floorElem'));
   c.fillStyle='#222';c.font='10px Inter,sans-serif';c.textAlign='center';c.textBaseline='bottom';
-  c.fillText('WALLSTUDIO  ·  Material List  ·  Combined H = sum of all identical piece heights across all pages',cvW/2,cvH-10);
+  c.fillText('WALLSTUDIO  ·  '+t('matListAllPages'),cvW/2,cvH-10);
   c.restore();
 }
 
@@ -1105,7 +1106,7 @@ async function exportPDF(){
         const pgName=pages[pageIdx].name;
         oc2.fillText(`WALLSTUDIO  ·  ${pgName}  ·  ${W.len}mm × ${W.h}mm`,16,PH-14);
         oc2.textAlign='center';
-        oc2.fillText(mode==='wall'?'WALL ELEVATION':'FLOOR PLAN',PW/2,PH-14);
+        oc2.fillText(mode==='wall'?t('wallElevation'):t('floorPlanView'),PW/2,PH-14);
         oc2.textAlign='right';
         oc2.fillText(`Page ${pageIdx+1} of ${pages.length}  ·  ${new Date().toLocaleDateString()}`,PW-16,PH-14);
         oc2.restore();
@@ -1164,7 +1165,7 @@ async function exportPDF(){
     }
     // Summary title
     oc2.fillStyle='#333';oc2.font='11px Inter,sans-serif';oc2.textAlign='center';oc2.textBaseline='bottom';
-    oc2.fillText(`ALL PAGES OVERVIEW  —  ${pages.length} page${pages.length!==1?'s':''}`,PW/2,PH-6);
+    oc2.fillText(t('allPagesOverview')+'  —  '+pages.length+'p',PW/2,PH-6);
     doc.addImage(oc.toDataURL('image/png'),0,0,PW,PH);
 
     // Restore
@@ -2705,6 +2706,7 @@ function applyLang(){
   // Rebuild all dynamic elements with new language
   buildTabs();buildPalette();rebuildImportedPalette();buildDots();
   refreshList();refreshEdit();
+  if(fpVisible)drawFloorPlan();
   const sn=document.getElementById('sn');
   if(sn)sn.textContent=t('pageOf',curP+1,pages.length);
   document.querySelectorAll('.lang-btn').forEach(b=>{
