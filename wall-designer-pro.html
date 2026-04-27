@@ -621,7 +621,7 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   c.fillStyle=W.col.wall+'28';c.fillRect(ox,oy,W.len*sc,W.d*sc);
   c.strokeStyle=W.col.wall+'88';c.lineWidth=1.5;c.strokeRect(ox,oy,W.len*sc,W.d*sc);
   c.fillStyle='#444';c.font='8px Inter,sans-serif';c.textAlign='center';c.textBaseline='middle';
-  c.fillText('WALL',ox+W.len*sc/2,oy+W.d*sc/2);
+  c.fillText(t('wall').toUpperCase(),ox+W.len*sc/2,oy+W.d*sc/2);
   c.restore();
 
   const floorObjs=allObjs.filter(o=>isFloor(o.t));
@@ -716,9 +716,9 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       c.fillStyle=o.color;c.fillRect(col1,ly+1,8,8);
       c.fillStyle='#888';
       c.fillText(_fpGrpNum[o.label+'|'+o.w+'|'+o.h+'|'+o.d]+'  '+o.label,col1+12,ly);
-      c.fillText('W: '+o.w+'mm',col2,ly);
-      c.fillText('From wall: '+(o.rd||0)+'mm',col3,ly);
-      c.fillText('From left: '+o.x+'mm',col4,ly);
+      c.fillText(t('width')+': '+o.w+'mm',col2,ly);
+      c.fillText(t('distFromWall')+': '+(o.rd||0)+'mm',col3,ly);
+      c.fillText(t('fromLeft')+': '+o.x+'mm',col4,ly);
     });
     c.restore();
   }
@@ -729,7 +729,7 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   // Title
   c.save();c.fillStyle='#444';c.font='10px Inter,sans-serif';c.textAlign='left';
   const pgName=pg?pg.name:pages[curP].name;
-  c.fillText(`FLOOR PLAN  —  ${pgName}  —  ${W.len}×${FLOOR_DEPTH}mm`,14,cvH-10);
+  c.fillText(t('floorPlanView')+'  —  '+pgName+'  —  '+W.len+'×'+FLOOR_DEPTH+'mm',14,cvH-10);
   c.restore();
 }
 
@@ -788,63 +788,67 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   const sorted=[...wallObjs].sort((a,b)=>a.x-b.x);
   const _weGrpKeys=[...new Set(sorted.map(o=>o.label+'|'+o.w+'|'+o.h+'|'+o.d))];
   const _weGrpNum={};_weGrpKeys.forEach((k,i)=>_weGrpNum[k]=i+1);
+  const _annPal=['#4a9eff','#ff6b4a','#4aff9e','#ff4ab8','#ffe44a','#b84aff','#4afff0','#ff9e4a','#ff4a4a','#a0ff4a'];
+  const _annCol=o=>_annPal[(_weGrpNum[o.label+'|'+o.w+'|'+o.h+'|'+o.d]-1)%_annPal.length];
   const wallRight=ox+W.len*sc;
   const wallBottomY=oy+W.h*sc;
+
+  // Pre-compute unique vertical lanes (nearest-axis only, deduplicated)
+  const _preNV=new Set();let _vLC=0;
+  sorted.forEach(o=>{
+    const fF=o.y,fC=W.h-o.y-o.h;
+    if(fF>0||fC>0){
+      const uF=fF>0&&(fC<=0||fF<=fC);
+      const key=(uF?'f':'c')+(uF?fF:fC);
+      if(!_preNV.has(key)){_preNV.add(key);_vLC++;}
+    }
+  });
+
+  const drawnNearV=new Set();let vLane=0;
 
   sorted.forEach((o,i)=>{
     const rx=ox+o.x*sc;
     const ry=oy+(W.h-o.y-o.h)*sc;
     const rw=o.w*sc,rh=o.h*sc;
     const lane=i;
+    const col=_annCol(o);
 
-    // Width dim — below wall, staggered by lane
-    const wDimY=wallBottomY+22+lane*22;
-    fpDimLine(c,rx,wDimY,rx+rw,wDimY,o.w+'mm',-1,'#c8703a');
-    c.save();c.strokeStyle='#c8703a22';c.lineWidth=.5;c.setLineDash([2,3]);
-    c.beginPath();c.moveTo(rx,wallBottomY);c.lineTo(rx,wDimY);
-    c.moveTo(rx+rw,wallBottomY);c.lineTo(rx+rw,wDimY);c.stroke();
-    c.setLineDash([]);c.restore();
+    // Colored outline ties object rect to its annotation lines
+    c.save();c.strokeStyle=col;c.lineWidth=1.5;c.strokeRect(rx,ry,rw,rh);c.restore();
 
-    // Height dim — to the right, staggered
-    const hDimX=wallRight+22+lane*22;
-    fpDimLine(c,hDimX,ry,hDimX,ry+rh,o.h+'mm',1,'#b89840');
-    c.save();c.strokeStyle='#b8984022';c.lineWidth=.5;c.setLineDash([2,3]);
-    c.beginPath();c.moveTo(wallRight,ry);c.lineTo(hDimX,ry);
-    c.moveTo(wallRight,ry+rh);c.lineTo(hDimX,ry+rh);c.stroke();
-    c.setLineDash([]);c.restore();
-
-    // From left edge
-    if(o.x>0){
-      const fromLeftY=oy-22-lane*22;
-      fpDimLine(c,ox,fromLeftY,rx,fromLeftY,o.x+'mm',-1,'#8060c0');
-      c.save();c.strokeStyle='#8060c022';c.lineWidth=.5;c.setLineDash([2,3]);
-      c.beginPath();c.moveTo(ox,oy);c.lineTo(ox,fromLeftY);
-      c.moveTo(rx,oy);c.lineTo(rx,fromLeftY);c.stroke();
+    // Nearest horizontal wall — single dim to closer side, skip if touching a wall
+    const fromLeft=o.x,fromRight=W.len-o.x-o.w;
+    const useLeft=fromLeft<=fromRight;
+    const nearHDist=useLeft?fromLeft:fromRight;
+    if(nearHDist>0){
+      const nearHX1=useLeft?ox:rx+rw;
+      const nearHX2=useLeft?rx:wallRight;
+      const nearHY=oy-22-lane*22;
+      fpDimLine(c,nearHX1,nearHY,nearHX2,nearHY,(useLeft?'←':'→')+' '+nearHDist+'mm',-1,col);
+      c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
+      c.beginPath();c.moveTo(nearHX1,oy);c.lineTo(nearHX1,nearHY);c.moveTo(nearHX2,oy);c.lineTo(nearHX2,nearHY);c.stroke();
       c.setLineDash([]);c.restore();
     }
 
-    // From right edge
-    const fromRight=W.len-o.x-o.w;
-    if(fromRight>0){
-      const fromRightY=oy-22-(lane+1)*22;
-      fpDimLine(c,rx+rw,fromRightY,wallRight,fromRightY,fromRight+'mm',-1,'#60a080');
-    }
-
-    // From floor (y)
-    if(o.y>0){
-      const fDimX=ox-22-lane*22;
-      fpDimLine(c,fDimX,ry+rh,fDimX,wallBottomY,o.y+'mm',1,'#50a8a0');
-      c.save();c.strokeStyle='#50a8a022';c.lineWidth=.5;c.setLineDash([2,3]);
-      c.beginPath();c.moveTo(ox,ry+rh);c.lineTo(fDimX,ry+rh);
-      c.moveTo(ox,wallBottomY);c.lineTo(fDimX,wallBottomY);c.stroke();
-      c.setLineDash([]);c.restore();
-    }
-
-    // From ceiling
-    const fromTop=W.h-o.y-o.h;
-    if(fromTop>0){
-      const cDimX=ox-22-(lane+1)*22;
-      fpDimLine(c,cDimX,oy,cDimX,ry,fromTop+'mm',1,'#888');
+    // Nearest vertical — closer of from-floor vs from-ceiling, deduplicated
+    const fromFloor=o.y,fromCeil=W.h-o.y-o.h;
+    if(fromFloor>0||fromCeil>0){
+      const useFloor=fromFloor>0&&(fromCeil<=0||fromFloor<=fromCeil);
+      const nearVDist=useFloor?fromFloor:fromCeil;
+      const nearVKey=(useFloor?'f':'c')+nearVDist;
+      if(!drawnNearV.has(nearVKey)){
+        drawnNearV.add(nearVKey);
+        const vDimX=ox-22-vLane*22;
+        if(useFloor){
+          fpDimLine(c,vDimX,ry+rh,vDimX,wallBottomY,nearVDist+'mm',1,col);
+          c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
+          c.beginPath();c.moveTo(ox,ry+rh);c.lineTo(vDimX,ry+rh);c.moveTo(ox,wallBottomY);c.lineTo(vDimX,wallBottomY);c.stroke();
+          c.setLineDash([]);c.restore();
+        } else {
+          fpDimLine(c,vDimX,oy,vDimX,ry,nearVDist+'mm',1,col);
+        }
+        vLane++;
+      }
     }
 
     // Index bubble
@@ -857,11 +861,11 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
 
   // ── OVERALL DIMENSION LINES ──
   fpDimLine(c,ox,oy,wallRight,oy,W.len+'mm',-1,'#4a9eff');
-  fpDimLine(c,wallRight,oy,wallRight,wallBottomY,W.h+'mm',1,'#4a9eff');
+  fpDimLine(c,wallRight,oy,wallRight,wallBottomY,W.h+'mm',-1,'#4a9eff');
   fpDimLine(c,ox,wallBottomY,wallRight,wallBottomY,W.d+'mm depth',-1,'#3a3a3a');
 
   // ── VERTICAL RULER (left) ──
-  const rulerX=ox-(sorted.length)*22-48;
+  const rulerX=ox-_vLC*22-48;
   c.save();c.strokeStyle='#252525';c.lineWidth=1;
   c.beginPath();c.moveTo(rulerX+10,oy);c.lineTo(rulerX+10,wallBottomY);c.stroke();
   const rStep=W.h>3000?1000:500;
@@ -877,11 +881,11 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
     c.beginPath();c.moveTo(rulerX+8,ry2);c.lineTo(rulerX+12,ry2);c.stroke();
   }
   c.fillStyle='#333';c.font='8px Inter,sans-serif';c.textAlign='center';c.textBaseline='middle';
-  c.save();c.translate(rulerX-2,oy+W.h*sc/2);c.rotate(-Math.PI/2);c.fillText('HEIGHT (mm)',0,0);c.restore();
+  c.save();c.translate(rulerX-2,oy+W.h*sc/2);c.rotate(-Math.PI/2);c.fillText(t('height').toUpperCase()+' (mm)',0,0);c.restore();
   c.restore();
 
   // ── HORIZONTAL RULER (bottom) ──
-  const rulerBaseY=wallBottomY+(sorted.length)*22+48;
+  const rulerBaseY=wallBottomY+48;
   c.save();c.strokeStyle='#252525';c.lineWidth=1;
   c.beginPath();c.moveTo(ox,rulerBaseY-10);c.lineTo(wallRight,rulerBaseY-10);c.stroke();
   const xStep=W.len>4000?1000:500;
@@ -897,35 +901,17 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
     c.beginPath();c.moveTo(rx2,rulerBaseY-12);c.lineTo(rx2,rulerBaseY-7);c.stroke();
   }
   c.fillStyle='#333';c.font='8px Inter,sans-serif';c.textAlign='center';c.textBaseline='top';
-  c.fillText('LENGTH (mm)',ox+W.len*sc/2,rulerBaseY+3);
+  c.fillText(t('length').toUpperCase()+' (mm)',ox+W.len*sc/2,rulerBaseY+3);
   c.restore();
 
-  // ── LEGEND ──
-  if(wallObjs.length>0){
-    const legX=ox,legY=rulerBaseY+20;
-    c.save();
-    c.fillStyle='#141414';c.fillRect(legX,legY,W.len*sc,13*sorted.length+10);
-    const col=[0,.25,.5,.72,.88].map(f=>legX+6+f*(W.len*sc-12));
-    sorted.forEach((o,i)=>{
-      const ly=legY+5+i*13;
-      c.fillStyle=o.color;c.fillRect(col[0],ly+1,8,8);
-      c.fillStyle='#777';c.font='8px Inter,sans-serif';c.textAlign='left';c.textBaseline='top';
-      c.fillText(_weGrpNum[o.label+'|'+o.w+'|'+o.h+'|'+o.d]+'  '+o.label,col[0]+11,ly);
-      c.fillText('W: '+o.w+'mm',col[1],ly);
-      c.fillText('H: '+o.h+'mm  D: '+o.d+'mm',col[2],ly);
-      c.fillText('From left: '+o.x+'mm',col[3],ly);
-      c.fillText('From floor: '+o.y+'mm',col[4],ly);
-    });
-    c.restore();
-  }
-  if(showMat&&wallObjs.length>0){const _wm=getMaterials(wallObjs);drawMaterialList(c,ox,rulerBaseY+20+13*sorted.length+10+6,W.len*sc,_wm,false);}
+  if(showMat&&wallObjs.length>0){const _wm=getMaterials(wallObjs);drawMaterialList(c,ox,rulerBaseY+20,W.len*sc,_wm,false);}
 
   fpScaleBar(c,cvW,cvH,sc);
 
   // Title
   c.save();c.fillStyle='#444';c.font='10px Inter,sans-serif';c.textAlign='left';
   const pgName=pg?pg.name:pages[curP].name;
-  c.fillText(`WALL ELEVATION  —  ${pgName}  —  ${wallObjs.length} element${wallObjs.length!==1?'s':''}  —  ${W.len}×${W.h}mm`,14,cvH-10);
+  c.fillText(t('wallElevation')+'  —  '+pgName+'  —  '+wallObjs.length+' '+t('wallElem').toLowerCase()+'  —  '+W.len+'×'+W.h+'mm',14,cvH-10);
   c.restore();
 }
 
@@ -946,10 +932,10 @@ function drawMaterialList(c,x,y,w,mats,combined){
   c.save();
   c.fillStyle='#0d0d0d';c.fillRect(x,y,w,boxH);
   c.strokeStyle='#1d1d1d';c.lineWidth=.5;c.strokeRect(x,y,w,boxH);
-  const hdr=combined?'MATERIALS — ALL PAGES (combined H)':'MATERIALS';
+  const hdr=combined?t('materialsAll'):t('materials');
   c.fillStyle='#3a3a3a';c.font='bold 10px Inter,sans-serif';c.textAlign='left';c.textBaseline='middle';
   c.fillText(hdr,x+pad,y+hH/2);
-  c.textAlign='right';c.fillText(combined?'TOTAL H':'QTY',x+w-pad,y+hH/2);
+  c.textAlign='right';c.fillText(combined?t('totalH'):t('qty'),x+w-pad,y+hH/2);
   c.strokeStyle='#1d1d1d';c.beginPath();c.moveTo(x,y+hH);c.lineTo(x+w,y+hH);c.stroke();
   mats.forEach((m,i)=>{
     const ry=y+hH+i*rH+rH/2;
@@ -973,7 +959,7 @@ function renderAllPagesMaterialList(c,cvW,cvH){
   const pad=28,rH=20,hH=28,secGap=20;
   c.save();
   c.fillStyle='#555';c.font='bold 14px Inter,sans-serif';c.textAlign='left';c.textBaseline='top';
-  c.fillText('MATERIAL LIST — ALL PAGES COMBINED',pad,pad);
+  c.fillText(t('matListAllPages'),pad,pad);
   const totalPcs=wallMats.reduce((s,m)=>s+m.count,0)+floorMats.reduce((s,m)=>s+m.count,0);
   c.fillStyle='#333';c.font='9px Inter,sans-serif';
   c.fillText(`${pages.length} page${pages.length!==1?'s':''}  ·  ${totalPcs} total pieces  ·  ${new Date().toLocaleDateString()}`,pad,pad+20);
@@ -1000,8 +986,8 @@ function renderAllPagesMaterialList(c,cvW,cvH){
     });
     y+=secGap;
   };
-  drawSection(wallMats,'WALL ELEMENTS');
-  drawSection(floorMats,'FLOOR ELEMENTS');
+  drawSection(wallMats,t('wallElem'));
+  drawSection(floorMats,t('floorElem'));
   c.fillStyle='#222';c.font='10px Inter,sans-serif';c.textAlign='center';c.textBaseline='bottom';
   c.fillText('WALLSTUDIO  ·  Material List  ·  Combined H = sum of all identical piece heights across all pages',cvW/2,cvH-10);
   c.restore();
@@ -1937,6 +1923,14 @@ function refreshEdit(){
   sec.style.display='block';
   document.getElementById('ebh').textContent=o.label;
   const flds=document.getElementById('ef');flds.innerHTML='';
+  // Name input
+  const _nr=document.createElement('div');_nr.className='cr';
+  _nr.innerHTML=`<span class="rl">${t('nameLabel')}</span><input type="text" style="flex:1;background:var(--s2);border:1px solid var(--b2);border-radius:3px;color:var(--mt);padding:3px 6px;font-size:11px;font-family:Inter,sans-serif;min-width:0" value="${o.label.replace(/"/g,'&quot;')}" id="ef-label">`;
+  flds.appendChild(_nr);
+  const _li=document.getElementById('ef-label');
+  _li.oninput=()=>{if(_li.value.trim()){o.label=_li.value.trim();document.getElementById('ebh').textContent=o.label;refreshList();if(fpVisible)drawFloorPlan();}};
+  _li.onblur=()=>{if(_li.value.trim()!==o.label&&_li.value.trim())snapshot();};
+  _li.onkeydown=e=>{if(e.key==='Enter'){_li.blur();}if(e.key==='Escape'){_li.value=o.label;}};
   const addF=(lbl,key,mn,mx,st)=>{
     const row=document.createElement('div');row.className='cr';
     row.innerHTML=`<span class="rl">${lbl}</span><input type="range" class="cmr" min="${mn}" max="${mx}" step="${st}" value="${Math.round(o[key]||0)}" id="efr-${key}"><input type="number" class="cmi" value="${Math.round(o[key]||0)}" id="efn-${key}"><span class="cmu">mm</span>`;
@@ -2429,6 +2423,7 @@ const LANGS={
     el_armchair:'Armchair',el_coffee:'Coffee Table',el_dining:'Dining Table',
     el_cabinet:'TV Cabinet',el_sideboard:'Sideboard',el_carpet:'Carpet',
     el_plant:'Plant',el_lamp:'Floor Lamp',el_light:'Light Source',
+    nameLabel:'Name',materials:'MATERIALS',materialsAll:'MATERIALS — ALL PAGES (combined H)',qty:'QTY',totalH:'TOTAL H',wallElevation:'WALL ELEVATION',floorPlanView:'FLOOR PLAN',matListAllPages:'MATERIAL LIST — ALL PAGES COMBINED',allPagesOverview:'ALL PAGES OVERVIEW',wallElem:'WALL ELEMENTS',floorElem:'FLOOR ELEMENTS',
   },
   de:{
     subtitle:'Wandplaner · mm',
@@ -2468,6 +2463,7 @@ const LANGS={
     el_armchair:'Sessel',el_coffee:'Couchtisch',el_dining:'Esstisch',
     el_cabinet:'TV-Schrank',el_sideboard:'Sideboard',el_carpet:'Teppich',
     el_plant:'Pflanze',el_lamp:'Stehlampe',el_light:'Lichtquelle',
+    nameLabel:'Name',materials:'MATERIALIEN',materialsAll:'MATERIALIEN — ALLE SEITEN (komb. H)',qty:'ANZ',totalH:'GESAMT H',wallElevation:'WANDANSICHT',floorPlanView:'GRUNDRISS',matListAllPages:'MATERIALLISTE — ALLE SEITEN',allPagesOverview:'SEITENÜBERSICHT',wallElem:'WANDELEMENTE',floorElem:'BODENELEMENTE',
   },
   es:{
     subtitle:'diseñador de alzados · mm',
@@ -2507,6 +2503,7 @@ const LANGS={
     el_armchair:'Sillón',el_coffee:'Mesa de centro',el_dining:'Mesa de comedor',
     el_cabinet:'Mueble TV grande',el_sideboard:'Aparador',el_carpet:'Alfombra',
     el_plant:'Planta',el_lamp:'Lámpara de pie',el_light:'Fuente de luz',
+    nameLabel:'Nombre',materials:'MATERIALES',materialsAll:'MATERIALES — TODAS LAS PÁGINAS (H comb.)',qty:'CANT',totalH:'H TOTAL',wallElevation:'ALZADO DE PARED',floorPlanView:'PLANTA',matListAllPages:'LISTA DE MATERIALES — TODAS LAS PÁGINAS',allPagesOverview:'RESUMEN DE PÁGINAS',wallElem:'ELEMENTOS DE PARED',floorElem:'ELEMENTOS DE SUELO',
   },
   it:{
     subtitle:'progettista di alzati · mm',
@@ -2546,6 +2543,7 @@ const LANGS={
     el_armchair:'Poltrona',el_coffee:'Tavolino',el_dining:'Tavolo da pranzo',
     el_cabinet:'Credenza TV',el_sideboard:'Credenza',el_carpet:'Tappeto',
     el_plant:'Pianta',el_lamp:'Lampada da terra',el_light:'Sorgente luminosa',
+    nameLabel:'Nome',materials:'MATERIALI',materialsAll:'MATERIALI — TUTTE LE PAGINE (H comb.)',qty:'QTÀ',totalH:'H TOTALE',wallElevation:'ALZATO PARETE',floorPlanView:'PIANTA',matListAllPages:'LISTA MATERIALI — TUTTE LE PAGINE',allPagesOverview:'PANORAMICA PAGINE',wallElem:'ELEMENTI PARETE',floorElem:'ELEMENTI PAVIMENTO',
   },
   ru:{
     subtitle:'дизайнер фасадов · мм',
@@ -2585,6 +2583,7 @@ const LANGS={
     el_armchair:'Кресло',el_coffee:'Журнальный столик',el_dining:'Обеденный стол',
     el_cabinet:'ТВ тумба',el_sideboard:'Буфет',el_carpet:'Ковёр',
     el_plant:'Растение',el_lamp:'Торшер',el_light:'Источник света',
+    nameLabel:'Название',materials:'МАТЕРИАЛЫ',materialsAll:'МАТЕРИАЛЫ — ВСЕ СТРАНИЦЫ (сумм. H)',qty:'КОЛ',totalH:'ИТОГО H',wallElevation:'ФАСАД СТЕНЫ',floorPlanView:'ПЛАН',matListAllPages:'СПИСОК МАТЕРИАЛОВ — ВСЕ СТРАНИЦЫ',allPagesOverview:'ОБЗОР СТРАНИЦ',wallElem:'ЭЛЕМЕНТЫ СТЕНЫ',floorElem:'ЭЛЕМЕНТЫ ПОЛА',
   },
   zh:{
     subtitle:'立面设计师 · 毫米',
@@ -2624,6 +2623,7 @@ const LANGS={
     el_armchair:'扶手椅',el_coffee:'茶几',el_dining:'餐桌',
     el_cabinet:'电视机柜',el_sideboard:'餐边柜',el_carpet:'地毯',
     el_plant:'植物',el_lamp:'落地灯',el_light:'光源',
+    nameLabel:'名称',materials:'材料',materialsAll:'材料 — 所有页面（合并高度）',qty:'数量',totalH:'总高',wallElevation:'墙面立面图',floorPlanView:'平面图',matListAllPages:'材料清单 — 所有页面合并',allPagesOverview:'所有页面概览',wallElem:'墙面元素',floorElem:'地面元素',
   },
   fr:{
     subtitle:'concepteur d\'élévation · mm',
@@ -2663,6 +2663,7 @@ const LANGS={
     el_armchair:'Fauteuil',el_coffee:'Table basse',el_dining:'Table à manger',
     el_cabinet:'Buffet TV',el_sideboard:'Buffet',el_carpet:'Tapis',
     el_plant:'Plante',el_lamp:'Lampadaire',el_light:'Source de lumière',
+    nameLabel:'Nom',materials:'MATÉRIAUX',materialsAll:'MATÉRIAUX — TOUTES LES PAGES (H comb.)',qty:'QTÉ',totalH:'H TOTAL',wallElevation:'ÉLÉVATION DE MUR',floorPlanView:'PLAN',matListAllPages:'LISTE DE MATÉRIAUX — TOUTES LES PAGES',allPagesOverview:'APERÇU DES PAGES',wallElem:'ÉLÉMENTS DE MUR',floorElem:'ÉLÉMENTS DE SOL',
   },
 };
 

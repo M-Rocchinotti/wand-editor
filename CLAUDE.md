@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git & GitHub Workflow
+
+Always commit changes locally and push to GitHub after each session or meaningful change.
+
+- Remote: `https://github.com/M-Rocchinotti/wand-editor.git`
+- Branch: `master`
+- Write clean, descriptive commit messages
+- Push after every session so there's always a saved version to revert to
+
 ## Running the app
 
 No build step. Open `wall-designer-pro.html` directly in any browser. Two CDN dependencies load at runtime:
