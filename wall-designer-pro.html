@@ -797,11 +797,8 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   const _preNV=new Set();let _vLC=0;
   sorted.forEach(o=>{
     const fF=o.y,fC=W.h-o.y-o.h;
-    if(fF>0||fC>0){
-      const uF=fF>0&&(fC<=0||fF<=fC);
-      const key=(uF?'f':'c')+(uF?fF:fC);
-      if(!_preNV.has(key)){_preNV.add(key);_vLC++;}
-    }
+    const uF=fF<=fC;const nearV=uF?fF:fC;
+    if(nearV>0){const key=(uF?'f':'c')+nearV;if(!_preNV.has(key)){_preNV.add(key);_vLC++;}}
   });
 
   const drawnNearV=new Set();let vLane=0;
@@ -830,11 +827,11 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       c.setLineDash([]);c.restore();
     }
 
-    // Nearest vertical — closer of from-floor vs from-ceiling, deduplicated
+    // Nearest vertical — skip if touching a wall (same rule as horizontal)
     const fromFloor=o.y,fromCeil=W.h-o.y-o.h;
-    if(fromFloor>0||fromCeil>0){
-      const useFloor=fromFloor>0&&(fromCeil<=0||fromFloor<=fromCeil);
-      const nearVDist=useFloor?fromFloor:fromCeil;
+    const useFloor=fromFloor<=fromCeil;
+    const nearVDist=useFloor?fromFloor:fromCeil;
+    if(nearVDist>0){
       const nearVKey=(useFloor?'f':'c')+nearVDist;
       if(!drawnNearV.has(nearVKey)){
         drawnNearV.add(nearVKey);
@@ -943,11 +940,14 @@ function drawMaterialList(c,x,y,w,mats,combined){
     c.fillStyle=m.color;c.fillRect(x+pad,ry-4,8,8);
     c.fillStyle='#777';c.font='10px Inter,sans-serif';c.textAlign='left';
     c.fillText(m.label,x+pad+12,ry);
+    const totalW=m.w*m.count;
+    const sqm=(totalW*m.h/1e6).toFixed(2)+'m²';
     c.fillStyle='#555';c.font='10px DM Mono,monospace';
-    const dims=combined?`${m.w}×${m.h*m.count}×${m.d}mm`:`${m.w}×${m.h}×${m.d}mm`;
-    c.fillText(dims,x+w*0.40,ry);
-    c.fillStyle='#666';c.textAlign='right';
-    c.fillText(combined?`${m.count}×${m.h}mm`:`×${m.count}`,x+w-pad,ry);
+    c.fillText(`${m.w}×${m.h}×${m.d}mm`,x+w*0.36,ry);
+    c.fillStyle='#666';c.textAlign='center';
+    c.fillText(`×${m.count} = ${totalW}mm`,x+w*0.65,ry);
+    c.fillStyle='#4a8a6a';c.textAlign='right';
+    c.fillText(sqm,x+w-pad,ry);
   });
   c.restore();
   return boxH;
@@ -971,7 +971,7 @@ function renderAllPagesMaterialList(c,cvW,cvH){
     c.fillText(`${title} (${mats.reduce((s,m)=>s+m.count,0)} pieces)`,pad,y);y+=14;
     c.fillStyle='#1a1a1a';c.fillRect(pad,y,cvW-pad*2,hH);
     c.fillStyle='#3a3a3a';c.font='bold 10px Inter,sans-serif';c.textBaseline='middle';
-    [['#',0,'left'],['Label',1,'left'],['W × H × D mm',2,'left'],['Combined H',3,'left'],['Qty',4,'right']].forEach(([h,ci,ta])=>{c.textAlign=ta;c.fillText(h,cols[ci],y+hH/2);});
+    [['#',0,'left'],['Label',1,'left'],['W × H × D mm',2,'left'],['×Qty = Total W',3,'left'],['m²',4,'right']].forEach(([h,ci,ta])=>{c.textAlign=ta;c.fillText(h,cols[ci],y+hH/2);});
     y+=hH;
     mats.forEach((m,i)=>{
       c.fillStyle=i%2?'#0c0c0c':'#0a0a0a';c.fillRect(pad,y,cvW-pad*2,rH);
@@ -979,9 +979,10 @@ function renderAllPagesMaterialList(c,cvW,cvH){
       c.fillStyle='#444';c.font='10px DM Mono,monospace';c.textAlign='left';c.fillText(i+1,cols[0],y+rH/2);
       c.fillStyle=m.color;c.fillRect(cols[1]-14,y+rH/2-4,8,8);
       c.fillStyle='#888';c.font='10px Inter,sans-serif';c.fillText(m.label,cols[1],y+rH/2);
+      const _tw=m.w*m.count;
       c.fillStyle='#666';c.font='10px DM Mono,monospace';c.fillText(m.w+' × '+m.h+' × '+m.d,cols[2],y+rH/2);
-      c.fillStyle='#bbb';c.fillText(m.h*m.count+' mm',cols[3],y+rH/2);
-      c.textAlign='right';c.fillStyle='#777';c.fillText(m.count+' pc',cols[4],y+rH/2);
+      c.fillStyle='#888';c.fillText('×'+m.count+' = '+_tw+'mm',cols[3],y+rH/2);
+      c.fillStyle='#4a8a6a';c.textAlign='right';c.fillText((_tw*m.h/1e6).toFixed(2)+'m²',cols[4],y+rH/2);
       y+=rH;
     });
     y+=secGap;
