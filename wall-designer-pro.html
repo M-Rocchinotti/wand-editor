@@ -726,6 +726,7 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90){
     });
     c.restore();
   }
+  if(floorObjs.length>0){const _fm=getMaterials(floorObjs);drawMaterialList(c,ox,floorBottom+22+sorted.length*22+18+14*sorted.length+10+6,W.len*sc,_fm,false);}
 
   fpScaleBar(c,cvW,cvH,sc);
 
@@ -919,6 +920,7 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90){
     });
     c.restore();
   }
+  if(wallObjs.length>0){const _wm=getMaterials(wallObjs);drawMaterialList(c,ox,rulerBaseY+20+13*sorted.length+10+6,W.len*sc,_wm,false);}
 
   fpScaleBar(c,cvW,cvH,sc);
 
@@ -926,6 +928,84 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90){
   c.save();c.fillStyle='#444';c.font='10px Inter,sans-serif';c.textAlign='left';
   const pgName=pg?pg.name:pages[curP].name;
   c.fillText(`WALL ELEVATION  —  ${pgName}  —  ${wallObjs.length} element${wallObjs.length!==1?'s':''}  —  ${W.len}×${W.h}mm`,14,cvH-10);
+  c.restore();
+}
+
+// ── MATERIAL LIST HELPERS ──
+function getMaterials(objList){
+  const g={};
+  objList.forEach(o=>{
+    const k=`${o.label}|${o.w}|${o.h}|${o.d}`;
+    if(!g[k])g[k]={label:o.label,w:o.w,h:o.h,d:o.d,color:o.color,count:0};
+    g[k].count++;
+  });
+  return Object.values(g).sort((a,b)=>a.label.localeCompare(b.label));
+}
+function drawMaterialList(c,x,y,w,mats,combined){
+  if(!mats.length)return 0;
+  const rH=13,hH=15,pad=5;
+  const boxH=hH+mats.length*rH+4;
+  c.save();
+  c.fillStyle='#0d0d0d';c.fillRect(x,y,w,boxH);
+  c.strokeStyle='#1d1d1d';c.lineWidth=.5;c.strokeRect(x,y,w,boxH);
+  const hdr=combined?'MATERIALS — ALL PAGES (combined H)':'MATERIALS';
+  c.fillStyle='#3a3a3a';c.font='bold 7.5px Inter,sans-serif';c.textAlign='left';c.textBaseline='middle';
+  c.fillText(hdr,x+pad,y+hH/2);
+  c.textAlign='right';c.fillText(combined?'TOTAL H':'QTY',x+w-pad,y+hH/2);
+  c.strokeStyle='#1d1d1d';c.beginPath();c.moveTo(x,y+hH);c.lineTo(x+w,y+hH);c.stroke();
+  mats.forEach((m,i)=>{
+    const ry=y+hH+i*rH+rH/2;
+    if(i%2){c.fillStyle='#0b0b0b';c.fillRect(x,y+hH+i*rH,w,rH);}
+    c.fillStyle=m.color;c.fillRect(x+pad,ry-3.5,7,7);
+    c.fillStyle='#777';c.font='7.5px Inter,sans-serif';c.textAlign='left';
+    c.fillText(m.label,x+pad+10,ry);
+    c.fillStyle='#555';c.font='7.5px DM Mono,monospace';
+    const dims=combined?`${m.w}×${m.h*m.count}×${m.d}mm`:`${m.w}×${m.h}×${m.d}mm`;
+    c.fillText(dims,x+w*0.40,ry);
+    c.fillStyle='#666';c.textAlign='right';
+    c.fillText(combined?`${m.count}×${m.h}mm`:`×${m.count}`,x+w-pad,ry);
+  });
+  c.restore();
+  return boxH;
+}
+function renderAllPagesMaterialList(c,cvW,cvH){
+  const allObjs=pages.flatMap(p=>p.objs);
+  const wallMats=getMaterials(allObjs.filter(o=>!isFloor(o.t)));
+  const floorMats=getMaterials(allObjs.filter(o=>isFloor(o.t)));
+  const pad=28,rH=20,hH=28,secGap=20;
+  c.save();
+  c.fillStyle='#555';c.font='bold 14px Inter,sans-serif';c.textAlign='left';c.textBaseline='top';
+  c.fillText('MATERIAL LIST — ALL PAGES COMBINED',pad,pad);
+  const totalPcs=wallMats.reduce((s,m)=>s+m.count,0)+floorMats.reduce((s,m)=>s+m.count,0);
+  c.fillStyle='#333';c.font='9px Inter,sans-serif';
+  c.fillText(`${pages.length} page${pages.length!==1?'s':''}  ·  ${totalPcs} total pieces  ·  ${new Date().toLocaleDateString()}`,pad,pad+20);
+  let y=pad+52;
+  const cols=[pad+10,cvW*0.30,cvW*0.52,cvW*0.68,cvW-pad];
+  const drawSection=(mats,title)=>{
+    if(!mats.length)return;
+    c.fillStyle='#333';c.font='bold 9px Inter,sans-serif';c.textAlign='left';c.textBaseline='top';
+    c.fillText(`${title} (${mats.reduce((s,m)=>s+m.count,0)} pieces)`,pad,y);y+=14;
+    c.fillStyle='#1a1a1a';c.fillRect(pad,y,cvW-pad*2,hH);
+    c.fillStyle='#3a3a3a';c.font='bold 8px Inter,sans-serif';c.textBaseline='middle';
+    [['#',0,'left'],['Label',1,'left'],['W × H × D mm',2,'left'],['Combined H',3,'left'],['Qty',4,'right']].forEach(([h,ci,ta])=>{c.textAlign=ta;c.fillText(h,cols[ci],y+hH/2);});
+    y+=hH;
+    mats.forEach((m,i)=>{
+      c.fillStyle=i%2?'#0c0c0c':'#0a0a0a';c.fillRect(pad,y,cvW-pad*2,rH);
+      c.textBaseline='middle';
+      c.fillStyle='#444';c.font='8px DM Mono,monospace';c.textAlign='left';c.fillText(i+1,cols[0],y+rH/2);
+      c.fillStyle=m.color;c.fillRect(cols[1]-14,y+rH/2-4,8,8);
+      c.fillStyle='#888';c.font='8px Inter,sans-serif';c.fillText(m.label,cols[1],y+rH/2);
+      c.fillStyle='#666';c.font='8px DM Mono,monospace';c.fillText(`${m.w} × ${m.h} × ${m.d}`,cols[2],y+rH/2);
+      c.fillStyle='#bbb';c.fillText(`${m.h*m.count} mm`,cols[3],y+rH/2);
+      c.textAlign='right';c.fillStyle='#777';c.fillText(`${m.count} pc`,cols[4],y+rH/2);
+      y+=rH;
+    });
+    y+=secGap;
+  };
+  drawSection(wallMats,'WALL ELEMENTS');
+  drawSection(floorMats,'FLOOR ELEMENTS');
+  c.fillStyle='#1a1a1a';c.fillStyle='#222';c.font='8px Inter,sans-serif';c.textAlign='center';c.textBaseline='bottom';
+  c.fillText('WALLSTUDIO  ·  Material List  ·  Combined H = sum of all identical piece heights across all pages',cvW/2,cvH-10);
   c.restore();
 }
 
@@ -990,7 +1070,7 @@ async function exportPDF(){
       // Compute margin large enough to fit all staggered dim lines + ruler + legend
       const pg2=pages[pageIdx];
       const nObjs=pg2?(mode==='wall'?pg2.objs.filter(o=>!isFloor(o.t)).length:pg2.objs.filter(o=>isFloor(o.t)).length):0;
-      const pdfMargin=Math.max(100,nObjs*38+90);
+      const pdfMargin=Math.max(140,nObjs*65+110);
 
       oc2.save();
       if(halfH==='bottom') oc2.translate(0,PH/2);
@@ -1016,6 +1096,13 @@ async function exportPDF(){
         oc2.restore();
       }
     }
+
+    // ── MATERIAL LIST PAGE (first page) ──
+    oc2.clearRect(0,0,PW,PH);
+    oc2.fillStyle='#0a0a0a';oc2.fillRect(0,0,PW,PH);
+    renderAllPagesMaterialList(oc2,PW,PH);
+    doc.addImage(oc.toDataURL('image/png'),0,0,PW,PH);
+    firstPage=false;
 
     // For each page: render Wall Elevation as main page, Floor Plan as second page
     for(let i=0;i<pages.length;i++){
