@@ -601,10 +601,9 @@ function fpScaleBar(c,cvW,cvH,sc){
 }
 
 // ── FLOOR PLAN (top-down) ────────────────────────────────────────────────
-function drawFloorPlanView(c,cvW,cvH,pageIdx){
+function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90){
   const pg=pages[pageIdx!==undefined?pageIdx:curP];
   const allObjs=pg?pg.objs:objs();
-  const margin=90;
   const sc=Math.min((cvW-margin*2)/W.len,(cvH-margin*2)/FLOOR_DEPTH)*fpScale;
   const ox=cvW/2-W.len/2*sc+fpPanX;
   const oy=cvH/2-FLOOR_DEPTH/2*sc+fpPanY;
@@ -738,10 +737,9 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx){
 }
 
 // ── WALL ELEVATION (front-on) ────────────────────────────────────────────
-function drawWallElevationView(c,cvW,cvH,pageIdx){
+function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90){
   const pg=pages[pageIdx!==undefined?pageIdx:curP];
   const allObjs=pg?pg.objs:objs();
-  const margin=90;
   const sc=Math.min((cvW-margin*2)/W.len,(cvH-margin*2)/W.h)*fpScale;
   const ox=cvW/2-W.len/2*sc+fpPanX;
   const oy=cvH/2-W.h/2*sc+fpPanY;
@@ -989,10 +987,15 @@ async function exportPDF(){
       const drawY=halfH==='top'?0:halfH==='bottom'?PH/2:0;
       const drawH=halfH?PH/2:PH;
 
+      // Compute margin large enough to fit all staggered dim lines + ruler + legend
+      const pg2=pages[pageIdx];
+      const nObjs=pg2?(mode==='wall'?pg2.objs.filter(o=>!isFloor(o.t)).length:pg2.objs.filter(o=>isFloor(o.t)).length):0;
+      const pdfMargin=Math.max(100,nObjs*38+90);
+
       oc2.save();
       if(halfH==='bottom') oc2.translate(0,PH/2);
-      if(mode==='wall') drawWallElevationView(oc2,PW,drawH,pageIdx);
-      else drawFloorPlanView(oc2,PW,drawH,pageIdx);
+      if(mode==='wall') drawWallElevationView(oc2,PW,drawH,pageIdx,pdfMargin);
+      else drawFloorPlanView(oc2,PW,drawH,pageIdx,pdfMargin);
       oc2.restore();
 
       // Title block — bottom strip on full pages
@@ -1048,7 +1051,7 @@ async function exportPDF(){
       oc2.beginPath();oc2.rect(0,0,thumbW-4,thumbH-4);oc2.clip();
       // Temporarily scale fpScale for thumbnail
       fpScale=0.5;fpPanX=0;fpPanY=0;
-      drawWallElevationView(oc2,thumbW-4,thumbH-4,i);
+      drawWallElevationView(oc2,thumbW-4,thumbH-4,i,20);
       fpScale=1;
       // Border
       oc2.strokeStyle='#222';oc2.lineWidth=1;oc2.strokeRect(0,0,thumbW-4,thumbH-4);
