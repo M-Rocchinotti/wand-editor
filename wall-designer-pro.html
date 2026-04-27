@@ -793,13 +793,24 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   const wallRight=ox+W.len*sc;
   const wallBottomY=oy+W.h*sc;
 
-  const drawnNearV=new Set();let vLane=0;
+  const drawnNearV=new Set();
 
-  sorted.forEach((o,i)=>{
+  // Pre-compute sorted lane maps — smallest value = lane 0 = nearest to plan boundary
+  const _hLObjs=sorted.filter(o=>{const fl=o.x,fr=W.len-o.x-o.w;return fl<=fr&&fl>0;});
+  const _hRObjs=sorted.filter(o=>{const fl=o.x,fr=W.len-o.x-o.w;return fr<fl&&fr>0;});
+  _hLObjs.sort((a,b)=>a.x-b.x);
+  _hRObjs.sort((a,b)=>(W.len-a.x-a.w)-(W.len-b.x-b.w));
+  const _hLL=new Map();_hLObjs.forEach((o,i)=>_hLL.set(o,i));
+  const _hRL=new Map();_hRObjs.forEach((o,i)=>_hRL.set(o,i));
+  const _vFVals=[...new Set(sorted.filter(o=>{const fl=o.y,fc=W.h-o.y-o.h;return fl<=fc&&fl>0;}).map(o=>o.y))].sort((a,b)=>a-b);
+  const _vCVals=[...new Set(sorted.filter(o=>{const fl=o.y,fc=W.h-o.y-o.h;return fc<fl&&fc>0;}).map(o=>W.h-o.y-o.h))].sort((a,b)=>a-b);
+  const _vFL=new Map();_vFVals.forEach((v,i)=>_vFL.set(v,i));
+  const _vCL=new Map();_vCVals.forEach((v,i)=>_vCL.set(v,i));
+
+  sorted.forEach((o)=>{
     const rx=ox+o.x*sc;
     const ry=oy+(W.h-o.y-o.h)*sc;
     const rw=o.w*sc,rh=o.h*sc;
-    const lane=i;
     const col=_annCol(o);
 
     // Colored outline ties object rect to its annotation lines
@@ -813,12 +824,14 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       const nearHX1=useLeft?ox:rx+rw;
       const nearHX2=useLeft?rx:wallRight;
       if(useLeft){
+        const lane=_hLL.get(o)??0;
         const hY=oy-22-lane*22;
         fpDimLine(c,nearHX1,hY,nearHX2,hY,'← '+nearHDist+'mm',-1,col);
         c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
         c.beginPath();c.moveTo(nearHX1,oy);c.lineTo(nearHX1,hY);c.moveTo(nearHX2,oy);c.lineTo(nearHX2,hY);c.stroke();
         c.setLineDash([]);c.restore();
       } else {
+        const lane=_hRL.get(o)??0;
         const hY=wallBottomY+22+lane*22;
         fpDimLine(c,nearHX1,hY,nearHX2,hY,'→ '+nearHDist+'mm',-1,col);
         c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
@@ -827,7 +840,7 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       }
     }
 
-    // Nearest vertical — near floor → left of object (near bottom), near ceiling → right of wall
+    // Nearest vertical — near floor → LEFT of wall boundary, near ceiling → RIGHT of wall
     const fromFloor=o.y,fromCeil=W.h-o.y-o.h;
     const useFloor=fromFloor<=fromCeil;
     const nearVDist=useFloor?fromFloor:fromCeil;
@@ -836,15 +849,14 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       if(!drawnNearV.has(nearVKey)){
         drawnNearV.add(nearVKey);
         if(useFloor){
-          const fDimX=rx-14;
+          const fDimX=ox-22-_vFL.get(nearVDist)*22;
           fpDimLine(c,fDimX,ry+rh,fDimX,wallBottomY,nearVDist+'mm',1,col);
           c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
-          c.beginPath();c.moveTo(rx,ry+rh);c.lineTo(fDimX,ry+rh);c.moveTo(rx,wallBottomY);c.lineTo(fDimX,wallBottomY);c.stroke();
+          c.beginPath();c.moveTo(ox,ry+rh);c.lineTo(fDimX,ry+rh);c.moveTo(ox,wallBottomY);c.lineTo(fDimX,wallBottomY);c.stroke();
           c.setLineDash([]);c.restore();
         } else {
-          const cDimX=wallRight+40+vLane*22;
+          const cDimX=wallRight+40+_vCL.get(nearVDist)*22;
           fpDimLine(c,cDimX,oy,cDimX,ry,nearVDist+'mm',-1,col);
-          vLane++;
         }
       }
     }
@@ -863,7 +875,7 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   fpDimLine(c,ox,wallBottomY,wallRight,wallBottomY,W.d+'mm depth',-1,'#3a3a3a');
 
   // ── VERTICAL RULER (left) ──
-  const rulerX=ox-48;
+  const rulerX=ox-_vFVals.length*22-48;
   c.save();c.strokeStyle='#252525';c.lineWidth=1;
   c.beginPath();c.moveTo(rulerX+10,oy);c.lineTo(rulerX+10,wallBottomY);c.stroke();
   const rStep=W.h>3000?1000:500;
@@ -883,7 +895,7 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   c.restore();
 
   // ── HORIZONTAL RULER (bottom) ──
-  const rulerBaseY=wallBottomY+22+sorted.length*22+48;
+  const rulerBaseY=wallBottomY+22+(_hRObjs.length||1)*22+48;
   c.save();c.strokeStyle='#252525';c.lineWidth=1;
   c.beginPath();c.moveTo(ox,rulerBaseY-10);c.lineTo(wallRight,rulerBaseY-10);c.stroke();
   const xStep=W.len>4000?1000:500;
@@ -918,11 +930,12 @@ function getMaterials(objList){
   const g={};
   objList.forEach(o=>{
     const k=`${o.label}|${o.w}|${o.h}|${o.d}`;
-    if(!g[k])g[k]={label:o.label,w:o.w,h:o.h,d:o.d,color:o.color,count:0};
+    if(!g[k]){const def=ETYPES.find(e=>e.t===o.t);g[k]={label:o.label,labelKey:def?.labelKey,defLabel:def?.label,w:o.w,h:o.h,d:o.d,color:o.color,count:0};}
     g[k].count++;
   });
   return Object.values(g).sort((a,b)=>a.label.localeCompare(b.label));
 }
+function matLabel(m){return m.labelKey&&m.label===m.defLabel?t(m.labelKey):m.label;}
 function drawMaterialList(c,x,y,w,mats,combined){
   if(!mats.length)return 0;
   const rH=17,hH=22,pad=6;
@@ -938,9 +951,11 @@ function drawMaterialList(c,x,y,w,mats,combined){
   mats.forEach((m,i)=>{
     const ry=y+hH+i*rH+rH/2;
     if(i%2){c.fillStyle='#0b0b0b';c.fillRect(x,y+hH+i*rH,w,rH);}
-    c.fillStyle=m.color;c.fillRect(x+pad,ry-4,8,8);
+    c.fillStyle='#444';c.font='9px DM Mono,monospace';c.textAlign='left';
+    c.fillText(i+1,x+pad,ry);
+    c.fillStyle=m.color;c.fillRect(x+pad+16,ry-4,8,8);
     c.fillStyle='#777';c.font='10px Inter,sans-serif';c.textAlign='left';
-    c.fillText(m.label,x+pad+12,ry);
+    c.fillText(matLabel(m),x+pad+28,ry);
     const totalW=m.w*m.count;
     const sqm=(totalW*m.h/1e6).toFixed(2)+'m²';
     c.fillStyle='#555';c.font='10px DM Mono,monospace';
@@ -979,7 +994,7 @@ function renderAllPagesMaterialList(c,cvW,cvH){
       c.textBaseline='middle';
       c.fillStyle='#444';c.font='10px DM Mono,monospace';c.textAlign='left';c.fillText(i+1,cols[0],y+rH/2);
       c.fillStyle=m.color;c.fillRect(cols[1]-14,y+rH/2-4,8,8);
-      c.fillStyle='#888';c.font='10px Inter,sans-serif';c.fillText(m.label,cols[1],y+rH/2);
+      c.fillStyle='#888';c.font='10px Inter,sans-serif';c.fillText(matLabel(m),cols[1],y+rH/2);
       const _tw=m.w*m.count;
       c.fillStyle='#666';c.font='10px DM Mono,monospace';c.fillText(m.w+' × '+m.h+' × '+m.d,cols[2],y+rH/2);
       c.fillStyle='#888';c.fillText('×'+m.count+' = '+_tw+'mm',cols[3],y+rH/2);
