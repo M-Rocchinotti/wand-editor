@@ -1702,8 +1702,9 @@ function drawGhost(){
   if(isFloor(def.t)){
     const{wx,wz:wzR}=screenToFloor(ghostPx,ghostPy);
     const wz=Math.max(10+def.d/2,Math.min(FLOOR_DEPTH-def.d/2,wzR));
-    const rd=Math.max(0,Math.min(FLOOR_DEPTH-def.d,wz-def.d/2));
-    const x=Math.max(0,Math.min(W.len-def.w,wx-def.w/2));
+    let rd=Math.max(0,Math.min(FLOOR_DEPTH-def.d,wz-def.d/2));
+    let x=Math.max(0,Math.min(W.len-def.w,wx-def.w/2));
+    const snap=snapFloor(x,rd,{id:-1,w:def.w,h:def.h,d:def.d,t:def.t,_p:1});x=snap.x;rd=snap.rd;
     const testO={t:def.t,x,y:0,w:def.w,h:def.h,d:def.d,rd,id:-1,_p:1};
     const col=hasCollision(testO)?'#e04040':def.color;
     if(def.meshKey){ctx.globalAlpha=0.5;drawMeshObj({...testO,meshKey:def.meshKey,color:col,wz:0,label:def.label});ctx.globalAlpha=1;}
@@ -1716,9 +1717,10 @@ function drawGhost(){
     }
   } else {
     const baseWZ=pages[curP].baseWZ||0;
-    const{x,y}=screenToWall(ghostPx,ghostPy,baseWZ);
-    const wx=Math.max(0,Math.min(W.len-def.w,x-def.w/2));
-    const wy=Math.max(0,Math.min(W.h-def.h,y-def.h/2));
+    const{x:rx,y:ry}=screenToWall(ghostPx,ghostPy,baseWZ);
+    let wx=Math.max(0,Math.min(W.len-def.w,rx-def.w/2));
+    let wy=Math.max(0,Math.min(W.h-def.h,ry-def.h/2));
+    const snap=snapWall(wx,wy,{id:-1,w:def.w,h:def.h,d:def.d,t:def.t,wz:baseWZ,_p:1});wx=snap.x;wy=snap.y;
     const testW={t:def.t,x:wx,y:wy,w:def.w,h:def.h,d:def.d,wz:baseWZ,id:-1,_p:1};
     const col=hasCollision(testW)?'#e04040':def.color;
     if(def.meshKey){ctx.globalAlpha=0.5;drawMeshObj({...testW,meshKey:def.meshKey,color:col,rd:0,label:def.label});ctx.globalAlpha=1;}
@@ -1968,9 +1970,10 @@ cv.addEventListener('pointerdown',e=>{
     if(def.t==='light'){const{x,y}=screenToWall(px,py);LT.x=Math.round(x);LT.y=Math.round(y);LT.on=true;document.getElementById('lt-sec').style.display='block';stopPlacing();draw();snapshot();return;}
     if(isFloor(def.t)){
       const{wx,wz:wzR}=screenToFloor(px,py);
-      const x=Math.round(Math.max(0,Math.min(W.len-def.w,wx-def.w/2)));
+      let x=Math.round(Math.max(0,Math.min(W.len-def.w,wx-def.w/2)));
       const wzC=Math.max(10+def.d/2,Math.min(FLOOR_DEPTH-def.d/2,wzR));
-      const rd=Math.round(Math.max(0,Math.min(FLOOR_DEPTH-def.d,wzC-def.d/2)));
+      let rd=Math.round(Math.max(0,Math.min(FLOOR_DEPTH-def.d,wzC-def.d/2)));
+      const sf=snapFloor(x,rd,{id:-1,w:def.w,h:def.h,d:def.d,t:def.t,_p:1});x=sf.x;rd=sf.rd;
       const o=makeObj(def.t,x,0,def.w,def.h,def.d,def.color,def.label);
       o.rd=rd;if(def.meshKey)o.meshKey=def.meshKey;
       resolveCollision(o);
@@ -1978,9 +1981,12 @@ cv.addEventListener('pointerdown',e=>{
       draw();refreshList();refreshEdit();updateSelActions();snapshot();return;
     }
     const baseWZ=pages[curP].baseWZ||0;
-    const{x,y}=screenToWall(px,py,baseWZ);
-    if(x<-50||x>W.len+50||y<-50||y>W.h+50){toast(t('clickWall'));return;}
-    const o=makeObj(def.t,Math.round(Math.max(0,Math.min(W.len-def.w,x-def.w/2))),Math.round(Math.max(0,Math.min(W.h-def.h,y-def.h/2))),def.w,def.h,def.d,def.color,def.label);
+    const{x:rx,y:ry}=screenToWall(px,py,baseWZ);
+    if(rx<-50||rx>W.len+50||ry<-50||ry>W.h+50){toast(t('clickWall'));return;}
+    let px2=Math.round(Math.max(0,Math.min(W.len-def.w,rx-def.w/2)));
+    let py2=Math.round(Math.max(0,Math.min(W.h-def.h,ry-def.h/2)));
+    const sw=snapWall(px2,py2,{id:-1,w:def.w,h:def.h,d:def.d,t:def.t,wz:baseWZ,_p:1});px2=sw.x;py2=sw.y;
+    const o=makeObj(def.t,px2,py2,def.w,def.h,def.d,def.color,def.label);
     o.wz=baseWZ;
     if(def.meshKey)o.meshKey=def.meshKey;
     resolveCollision(o);
