@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Wall Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<input type="file" id="fi" accept=".wallstudio,.json,.zip" style="display:none" onchange="loadFile(this)">
+<input type="file" id="ti" accept="image/*" style="display:none" onchange="loadTex(this)">
+<input type="file" id="mi" accept=".obj,.gltf,.glb,.stl,.ply" style="display:none" onchange="load3D(this)">
+<div class="panel-overlay" id="overlay" onclick="closePanel()"></div>
+<div class="app">
+<aside class="side" id="side">
+  <div class="side-head" style="display:flex;align-items:flex-start;justify-content:space-between">
+    <div>
+      <div class="logo">WALL<em>STUDIO</em></div>
+      <div class="logo-sub" data-i18n="subtitle">elevation designer · mm</div>
+    </div>
+    <button id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark" style="background:none;border:1px solid var(--b2);border-radius:2px;color:var(--mu);cursor:pointer;font-size:13px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;transition:color .12s,border-color .12s">☾</button>
+  </div>
+  <div class="lang-bar" id="lang-bar"></div>
+  <div class="side-body">
+    <div class="sec">
+      <div class="sec-t" data-i18n="wall">Wall</div>
+      <div class="cr"><span class="rl" data-i18n="length">Length</span><input type="range" class="cmr" min="1000" max="8000" step="50" value="5000" id="r-wl"><input type="number" class="cmi" value="5000" id="n-wl"><span class="cmu">mm</span></div>
+      <div class="cr"><span class="rl" data-i18n="height">Height</span><input type="range" class="cmr" min="1500" max="5000" step="50" value="2600" id="r-wh"><input type="number" class="cmi" value="2600" id="n-wh"><span class="cmu">mm</span></div>
+      <div class="cr"><span class="rl" data-i18n="depth">Depth</span><input type="range" class="cmr" min="50" max="600" step="10" value="200" id="r-wd"><input type="number" class="cmi" value="200" id="n-wd"><span class="cmu">mm</span></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t" data-i18n="colors">Colors</div>
+      <div class="krow"><span class="kl" data-i18n="wallFace">Wall face</span><div class="csw"><div class="csf" id="fc-wall" style="background:#cec8b4"></div><input type="color" value="#cec8b4" oninput="setWC('wall',this.value)"></div></div>
+      <div class="krow"><span class="kl" data-i18n="wallSide">Wall side/top</span><div class="csw"><div class="csf" id="fc-side" style="background:#b0a890"></div><input type="color" value="#b0a890" oninput="setWC('side',this.value)"></div></div>
+      <div class="krow"><span class="kl" data-i18n="floor">Floor</span><div class="csw"><div class="csf" id="fc-floor" style="background:#7a6040"></div><input type="color" value="#7a6040" oninput="setWC('floor',this.value)"></div></div>
+      <div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);margin-top:10px;margin-bottom:4px" data-i18n="materialPresets">Material Presets</div>
+      <div class="mat-grid" id="mat-grid"></div>
+    </div>
+    <div class="sec" id="lt-sec" style="display:none">
+      <div class="sec-t" data-i18n="lightSource">Light source</div>
+      <div class="cr"><span class="rl" data-i18n="intensity">Intensity</span><input type="range" class="cmr" min="0.1" max="1" step="0.05" value="0.6" id="r-li" oninput="LT.i=+this.value;draw()"></div>
+      <div class="krow" style="margin-top:4px"><span style="font-size:9px;color:var(--fa)" data-i18n="dragSun">Drag ☀ on canvas</span><button style="font-size:9px;color:#e05555;background:none;border:none;cursor:pointer;font-family:inherit" onclick="LT.on=false;document.getElementById('lt-sec').style.display='none';draw()" data-i18n="remove">Remove</button></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t" data-i18n="addElements">Add elements</div>
+      <div class="search-wrap"><span class="search-ico">⌕</span><input class="search-inp" id="pal-search" type="text" placeholder="Search…" oninput="filterPalette(this.value)"><button class="search-clr" onclick="document.getElementById('pal-search').value='';filterPalette('')" title="Clear">✕</button></div>
+      <button class="ubtn" onclick="document.getElementById('mi').click()" style="margin-bottom:8px;border-color:var(--b2);color:var(--tx)" data-i18n="import3d">⬆ Import 3D model (.obj .glb .stl .ply)</button>
+      <div id="imported-pal"></div>
+      <div class="el-pal" id="pal"></div>
+    </div>
+    <div class="sec" id="ob-sec" style="display:none">
+      <div class="sec-t" data-i18n="onThisPage">On this page</div>
+      <div class="align-bar" id="align-bar">
+        <button class="abtn" title="Align left" onclick="alignSel('left')">⊢</button>
+        <button class="abtn" title="Center H" onclick="alignSel('centerH')">⊟</button>
+        <button class="abtn" title="Align right" onclick="alignSel('right')">⊣</button>
+        <button class="abtn" title="Align top" onclick="alignSel('top')">⊤</button>
+        <button class="abtn" title="Center V" onclick="alignSel('centerV')">⊞</button>
+        <button class="abtn" title="Align bottom" onclick="alignSel('bottom')">⊥</button>
+        <button class="abtn" title="Distribute H" onclick="alignSel('distH')" style="font-size:8px">↔</button>
+        <button class="abtn" title="Distribute V" onclick="alignSel('distV')" style="font-size:8px">↕</button>
+      </div>
+      <div id="ob-list"></div>
+    </div>
+    <div class="sec" id="ed-sec" style="display:none">
+      <div class="sec-t" data-i18n="editSelected">Edit selected</div>
+      <div class="ebox">
+        <div style="display:flex;align-items:center;gap:6px"><div class="ebh" id="ebh" style="flex:1">—</div><button id="del-sel-btn" style="background:rgba(200,60,60,.15);border:1px solid rgba(200,60,60,.4);border-radius:4px;color:#e05555;font-size:11px;padding:2px 8px;cursor:pointer;font-family:'DM Mono',monospace" data-i18n-title="delete" title="Delete">✕</button></div>
+        <div id="ef"></div>
+        <button id="del-sel-btn2" style="width:100%;margin-top:10px;padding:7px;background:rgba(200,60,60,.12);border:1px solid rgba(200,60,60,.35);border-radius:5px;color:#e05555;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;letter-spacing:.05em" data-i18n="deleteSelected">✕ Delete selected</button>
+        <button onclick="toggleLock()" id="lock-btn" style="width:100%;margin-top:4px;padding:7px;background:var(--s2);border:1px solid var(--b2);border-radius:5px;color:var(--mu);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;letter-spacing:.05em" data-i18n="lockObj">⊠ Lock object</button>
+        <div class="krow" style="margin-top:7px"><span class="kl" data-i18n="color">Color</span><div class="csw"><div class="csf" id="fc-sel" style="background:#8a6838"></div><input type="color" value="#8a6838" id="ce" oninput="setSelC(this.value)"></div></div>
+        <div style="margin-top:7px">
+          <div style="font-size:8px;letter-spacing:.11em;text-transform:uppercase;color:var(--fa);margin-bottom:3px" data-i18n="texture">Texture</div>
+          <img id="tp" class="tprev">
+          <button class="ubtn" onclick="document.getElementById('ti').click()" data-i18n="uploadImage">↑ Upload image</button>
+          <button class="ubtn" onclick="clearTex()" data-i18n="removeTex">✕ Remove</button>
+        </div>
+        <div class="prow" id="prow"></div>
+      </div>
+    </div>
+  </div>
+  <button class="close-panel" onclick="closePanel()" data-i18n="closePanel">✕ close panel</button>
+</aside>
+<div class="main">
+  <div class="tabbar" id="tb"></div>
+  <div class="vp" id="vp">
+    <canvas id="cv"></canvas>
+    <div class="slbl"><div class="slbl-n" id="sn">Page 1 of 1</div><div class="slbl-t" id="st">Wall</div></div>
+    <div class="toast" id="toast"></div>
+    <!-- View toolbar -->
+    <div class="view-toolbar">
+      <div class="view-toolbar-row">
+        <button class="vbtn" onclick="camSetView(45,30)" data-i18n-title="viewIso" title="Isometric (default)"><span class="vbtn-ico">⬡</span><span data-i18n="iso">Iso</span></button>
+        <button class="vbtn" onclick="camSetView(0,1)" data-i18n-title="viewFront" title="Front view"><span class="vbtn-ico">▣</span><span data-i18n="front">Front</span></button>
+        <button class="vbtn" onclick="camSetView(90,1)" data-i18n-title="viewLeft" title="Left side view"><span class="vbtn-ico">◧</span><span data-i18n="left">Left</span></button>
+        <button class="vbtn" onclick="camSetView(-90,1)" data-i18n-title="viewRight" title="Right side view"><span class="vbtn-ico">◨</span><span data-i18n="right">Right</span></button>
+      </div>
+      <div class="view-toolbar-row">
+        <button class="vbtn" onclick="camSetView(45,89)" data-i18n-title="viewTop" title="Top-down view"><span class="vbtn-ico">⊡</span><span data-i18n="top">Top</span></button>
+        <button class="vbtn" onclick="camSetView(180,15)" data-i18n-title="viewBack" title="Back view"><span class="vbtn-ico">◫</span><span data-i18n="back">Back</span></button>
+        <button class="vbtn" onclick="camZoom(1.25)" data-i18n-title="zoomIn" title="Zoom in"><span class="vbtn-ico">+</span></button>
+        <button class="vbtn" onclick="camZoom(0.8)" data-i18n-title="zoomOut" title="Zoom out"><span class="vbtn-ico">−</span></button>
+        <button class="vbtn" onclick="camReset()" data-i18n-title="resetView" title="Reset view"><span class="vbtn-ico">⌂</span></button>
+      </div>
+      <div class="view-toolbar-row">
+        <button class="vbtn" id="undo-btn" onclick="undo()" title="Undo Ctrl+Z" disabled>↩ Undo</button>
+        <button class="vbtn" id="redo-btn" onclick="redo()" title="Redo Ctrl+Y" disabled>↪ Redo</button>
+        <button class="vbtn" id="snap-btn" title="Hold Ctrl while dragging to snap">⊕ Magnet: Ctrl</button>
+      </div>
+      <div class="view-toolbar-row">
+        <button class="vbtn" id="fp-btn" onclick="toggleFloorPlan()" title="2D Floor Plan">⊞ Plan</button>
+        <button class="vbtn" onclick="togglePrintMode()" title="Print / Elevation drawing">⎙ Print</button>
+        <button class="vbtn" onclick="exportPDF()" title="Export all pages as PDF">⬇ PDF</button>
+        <button class="vbtn" onclick="shareLink()" title="Copy shareable link">⛓ Share</button>
+      </div>
+    </div>
+    <div class="nav-hint" data-i18n="navHint">Scroll=zoom · Right-drag=orbit · Middle-drag=pan · Two-finger=orbit+zoom</div>
+    <!-- Floor plan 2D canvas -->
+    <canvas id="fp-cv"></canvas>
+    <!-- Floor plan view tabs -->
+    <div id="fp-tabs">
+      <button id="fp-tab-floor" class="on" onclick="setFpMode('floor')">Floor Plan</button>
+      <button id="fp-tab-wall" onclick="setFpMode('wall')">Wall Elevation</button>
+    </div>
+    <!-- Rubber band multi-select -->
+    <div id="rband"></div>
+  </div>
+  <div class="dnav" id="dnav"></div>
+</div>
+</div>
+<!-- Print overlay exit bar -->
+<div class="print-overlay" id="print-overlay">
+  <span style="font-weight:500">Print / Elevation Mode</span>
+  <button onclick="togglePrintMode()" style="background:#000;color:#fff;border:none;border-radius:2px;padding:4px 10px;cursor:pointer;font-family:'Inter',sans-serif;font-size:9px;letter-spacing:.08em">EXIT</button>
+  <button onclick="window.print()" style="background:#000;color:#fff;border:none;border-radius:2px;padding:4px 10px;cursor:pointer;font-family:'Inter',sans-serif;font-size:9px;letter-spacing:.08em">PRINT NOW</button>
+</div>
+<!-- Mobile FAB -->
+<button class="menu-btn" id="menuBtn" onclick="togglePanel()" title="Menu">☰</button>
+<!-- Selected object actions bar (mobile) -->
+<div class="sel-actions" id="selActions">
+  <button class="sa-btn" onclick="if(sel)copyObj(sel)" title="Copy">⎘</button>
+  <button class="sa-btn" onclick="pasteObj()" title="Paste">⎗</button>
+  <button class="sa-btn" onclick="if(sel)layerUp(sel)" title="Layer up">▲</button>
+  <button class="sa-btn" onclick="if(sel)layerDn(sel)" title="Layer down">▼</button>
+  <button class="sa-btn del" onclick="doDelete()" title="Delete">✕</button>
+</div>
+
+<!-- CDN dependencies -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- App scripts — load order matters: each file depends on globals from earlier files -->
+<script src="js/config.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/state.js"></script>
+<script src="js/geometry.js"></script>
+<script src="js/objects.js"></script>
+<script src="js/render.js"></script>
+<script src="js/plan.js"></script>
+<script src="js/mesh.js"></script>
+<script src="js/io.js"></script>
+<script src="js/export.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
