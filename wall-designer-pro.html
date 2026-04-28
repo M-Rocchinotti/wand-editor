@@ -318,6 +318,7 @@ body.print-mode .print-overlay{display:flex}
       <div class="view-toolbar-row">
         <button class="vbtn" id="undo-btn" onclick="undo()" title="Undo Ctrl+Z" disabled>↩ Undo</button>
         <button class="vbtn" id="redo-btn" onclick="redo()" title="Redo Ctrl+Y" disabled>↪ Redo</button>
+        <button class="vbtn" id="snap-btn" onclick="toggleSnap()" title="Snap to objects">⊕ Magnet</button>
       </div>
       <div class="view-toolbar-row">
         <button class="vbtn" id="fp-btn" onclick="toggleFloorPlan()" title="2D Floor Plan">⊞ Plan</button>
@@ -1907,6 +1908,29 @@ function resolveCollision(o){
   }
 }
 
+// ─── SNAP ───
+let snapEnabled=false;
+function toggleSnap(){snapEnabled=!snapEnabled;const b=document.getElementById('snap-btn');if(b)b.classList.toggle('active',snapEnabled);}
+const SNAP_PX=18;
+function snapWall(nx,ny,obj){
+  const thr=SNAP_PX/SC;let bx=nx,by=ny,mdx=thr,mdy=thr;
+  for(const o of objs()){
+    if(o.id===obj.id||o._p<0.5||isFloor(o.t))continue;
+    for(const cx of[o.x-obj.w,o.x+o.w,o.x,o.x+o.w-obj.w]){const d=Math.abs(nx-cx);if(d<mdx){mdx=d;bx=cx;}}
+    for(const cy of[o.y-obj.h,o.y+o.h,o.y,o.y+o.h-obj.h]){const d=Math.abs(ny-cy);if(d<mdy){mdy=d;by=cy;}}
+  }
+  return{x:Math.round(Math.max(0,Math.min(W.len-obj.w,bx))),y:Math.round(Math.max(0,Math.min(W.h-obj.h,by)))};
+}
+function snapFloor(nx,nrd,obj){
+  const thr=SNAP_PX/SC;let bx=nx,br=nrd,mdx=thr,mdr=thr;
+  for(const o of objs()){
+    if(o.id===obj.id||o._p<0.5||!isFloor(o.t))continue;
+    for(const cx of[o.x-obj.w,o.x+o.w,o.x,o.x+o.w-obj.w]){const d=Math.abs(nx-cx);if(d<mdx){mdx=d;bx=cx;}}
+    for(const cr of[(o.rd||0)-obj.d,(o.rd||0)+o.d,(o.rd||0),(o.rd||0)+o.d-obj.d]){const d=Math.abs(nrd-cr);if(d<mdr){mdr=d;br=cr;}}
+  }
+  return{x:Math.round(Math.max(0,Math.min(W.len-obj.w,bx))),rd:Math.round(Math.max(0,Math.min(FLOOR_DEPTH-obj.d,br)))};
+}
+
 // ─── POINTER ───
 let sel=null,dragObj=null,dragLt=false,dragOX=0,dragOY=0;
 let navDrag=null,pinchDist0=null,pinchSC0=1,touch2Start=null;
@@ -1999,17 +2023,19 @@ cv.addEventListener('pointermove',e=>{
     const delta={dx:0,dy:0,drd:0};
     if(isFloor(dragObj.t)){
       const{wx,wz}=screenToFloor(px,py);
-      const newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,wx-dragOX)));
+      let newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,wx-dragOX)));
       const wzC=Math.max(0,Math.min(FLOOR_DEPTH,wz));
-      const newRd=Math.max(0,Math.min(FLOOR_DEPTH-dragObj.d,Math.round(wzC-dragOY)));
+      let newRd=Math.max(0,Math.min(FLOOR_DEPTH-dragObj.d,Math.round(wzC-dragOY)));
+      if(snapEnabled){const s=snapFloor(newX,newRd,dragObj);newX=s.x;newRd=s.rd;}
       delta.dx=newX-dragObj.x;delta.drd=newRd-(dragObj.rd||0);
       const prev={x:dragObj.x,rd:dragObj.rd};
       dragObj.x=newX;dragObj.rd=newRd;
       if(hasCollision(dragObj)){dragObj.x=prev.x;dragObj.rd=prev.rd;delta.dx=0;delta.drd=0;}
     } else {
       const{x,y}=screenToWall(px,py,dragObj.wz||0);
-      const newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,x-dragOX)));
-      const newY=Math.round(Math.max(0,Math.min(W.h-dragObj.h,y-dragOY)));
+      let newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,x-dragOX)));
+      let newY=Math.round(Math.max(0,Math.min(W.h-dragObj.h,y-dragOY)));
+      if(snapEnabled){const s=snapWall(newX,newY,dragObj);newX=s.x;newY=s.y;}
       delta.dx=newX-dragObj.x;delta.dy=newY-dragObj.y;
       const prev={x:dragObj.x,y:dragObj.y};
       dragObj.x=newX;dragObj.y=newY;
