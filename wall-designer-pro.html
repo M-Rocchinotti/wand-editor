@@ -1112,10 +1112,32 @@ function drawFpGhost(c){
 }
 
 fpCV.addEventListener('wheel',e=>{e.preventDefault();fpScale=Math.max(.15,Math.min(8,fpScale*(e.deltaY<0?1.12:1/1.12)));drawFloorPlan();},{passive:false});
+function fpHitTest(cx,cy){
+  const sc=fpSc(),ox=fpCV.width/2-W.len/2*sc+fpPanX;
+  const allO=pages[curP].objs;
+  if(fpMode==='wall'){
+    const oy=fpCV.height/2-W.h/2*sc+fpPanY;
+    for(const o of [...allO].filter(o=>!isFloor(o.t)).reverse()){
+      const rx=ox+o.x*sc,ry=oy+(W.h-o.y-o.h)*sc,rw=o.w*sc,rh=o.h*sc;
+      if(cx>=rx&&cx<=rx+rw&&cy>=ry&&cy<=ry+rh)return o;
+    }
+  }else{
+    const oy=fpCV.height/2-FLOOR_DEPTH/2*sc+fpPanY;
+    for(const o of [...allO].filter(o=>isFloor(o.t)).reverse()){
+      const rx=ox+o.x*sc,rz=oy+(o.rd||0)*sc,rw=o.w*sc,rh=o.d*sc;
+      if(cx>=rx&&cx<=rx+rw&&cy>=rz&&cy<=rz+rh)return o;
+    }
+  }
+  return null;
+}
+
 fpCV.addEventListener('pointerdown',e=>{
   if(e.button!==0)return;
   if(placing){const{cx,cy}=fpCanvasCoords(e);fpPlaceObj(cx,cy);return;}
-  sel=null;clearMultiSel();draw();refreshList();refreshEdit();
+  const{cx,cy}=fpCanvasCoords(e);
+  const hit=fpHitTest(cx,cy);
+  if(hit){sel=hit.id;clearMultiSel();}else{sel=null;clearMultiSel();}
+  draw();refreshList();refreshEdit();
   fpDrag={sx:e.clientX,sy:e.clientY,px0:fpPanX,py0:fpPanY};fpCV.setPointerCapture(e.pointerId);
 });
 fpCV.addEventListener('pointermove',e=>{
@@ -1127,25 +1149,8 @@ fpCV.addEventListener('pointerup',()=>{fpDrag=null;});
 fpCV.addEventListener('pointerleave',()=>{if(placing){fpGhostCx=null;fpGhostCy=null;drawFloorPlan();}});
 fpCV.addEventListener('contextmenu',e=>{e.preventDefault();if(placing){stopPlacing();drawFloorPlan();}});
 fpCV.addEventListener('dblclick',e=>{
-  const rect=fpCV.getBoundingClientRect();
-  const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
-  const allO=pages[curP].objs;
-  const sc=Math.min((fpCV.width-180)/W.len,(fpCV.height-180)/(fpMode==='wall'?W.h:FLOOR_DEPTH))*fpScale;
-  const ox=fpCV.width/2-W.len/2*sc+fpPanX;
-  let hit=null;
-  if(fpMode==='wall'){
-    const oy=fpCV.height/2-W.h/2*sc+fpPanY;
-    for(const o of allO.filter(o=>!isFloor(o.t))){
-      const rx=ox+o.x*sc,ry=oy+(W.h-o.y-o.h)*sc,rw=o.w*sc,rh=o.h*sc;
-      if(cx>=rx&&cx<=rx+rw&&cy>=ry&&cy<=ry+rh){hit=o;break;}
-    }
-  }else{
-    const oy=fpCV.height/2-FLOOR_DEPTH/2*sc+fpPanY;
-    for(const o of allO.filter(o=>isFloor(o.t))){
-      const rx=ox+o.x*sc,rz=oy+(o.rd||0)*sc,rw=o.w*sc,rh=o.d*sc;
-      if(cx>=rx&&cx<=rx+rw&&cy>=rz&&cy<=rz+rh){hit=o;break;}
-    }
-  }
+  const{cx,cy}=fpCanvasCoords(e);
+  const hit=fpHitTest(cx,cy);
   if(hit){const n=prompt('Rename:',hit.label);if(n!==null&&n.trim()){snapshot();hit.label=n.trim();drawFloorPlan();}}
 });
 
