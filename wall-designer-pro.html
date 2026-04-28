@@ -1115,6 +1115,7 @@ fpCV.addEventListener('wheel',e=>{e.preventDefault();fpScale=Math.max(.15,Math.m
 fpCV.addEventListener('pointerdown',e=>{
   if(e.button!==0)return;
   if(placing){const{cx,cy}=fpCanvasCoords(e);fpPlaceObj(cx,cy);return;}
+  sel=null;clearMultiSel();draw();refreshList();refreshEdit();
   fpDrag={sx:e.clientX,sy:e.clientY,px0:fpPanX,py0:fpPanY};fpCV.setPointerCapture(e.pointerId);
 });
 fpCV.addEventListener('pointermove',e=>{
