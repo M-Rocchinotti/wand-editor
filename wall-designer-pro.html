@@ -609,7 +609,8 @@ function fpScaleBar(c,cvW,cvH,sc){
 
 // ── FLOOR PLAN (top-down) ────────────────────────────────────────────────
 function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
-  const pg=pages[pageIdx!==undefined?pageIdx:curP];
+  const effectiveIdx=pageIdx!==undefined?pageIdx:curP;
+  const pg=pages[effectiveIdx];
   const allObjs=pg?pg.objs:objs();
   const sc=Math.min((cvW-margin*2)/W.len,(cvH-margin*2)/FLOOR_DEPTH)*fpScale;
   const ox=cvW/2-W.len/2*sc+fpPanX;
@@ -630,6 +631,18 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   c.fillStyle='#444';c.font='8px Inter,sans-serif';c.textAlign='center';c.textBaseline='middle';
   c.fillText(t('wall').toUpperCase(),ox+W.len*sc/2,oy+W.d*sc/2);
   c.restore();
+
+  // Ghost: previous page floor objects
+  if(effectiveIdx>0){
+    const prevObjs=(pages[effectiveIdx-1].objs||[]).filter(o=>isFloor(o.t));
+    prevObjs.forEach(o=>{
+      const rx=ox+o.x*sc,rz=oy+(o.rd||0)*sc,rw=o.w*sc,rh=o.d*sc;
+      c.save();c.globalAlpha=0.28;
+      c.fillStyle=o.color;c.fillRect(rx,rz,rw,rh);
+      c.strokeStyle='rgba(180,180,255,.8)';c.lineWidth=1;c.setLineDash([3,3]);c.strokeRect(rx,rz,rw,rh);
+      c.setLineDash([]);c.restore();
+    });
+  }
 
   const floorObjs=allObjs.filter(o=>isFloor(o.t));
 
@@ -742,7 +755,8 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
 
 // ── WALL ELEVATION (front-on) ────────────────────────────────────────────
 function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
-  const pg=pages[pageIdx!==undefined?pageIdx:curP];
+  const effectiveIdx=pageIdx!==undefined?pageIdx:curP;
+  const pg=pages[effectiveIdx];
   const allObjs=pg?pg.objs:objs();
   const sc=Math.min((cvW-margin*2)/W.len,(cvH-margin*2)/W.h)*fpScale;
   const ox=cvW/2-W.len/2*sc+fpPanX;
@@ -762,6 +776,18 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   c.restore();
 
   const wallObjs=allObjs.filter(o=>!isFloor(o.t));
+
+  // Ghost: previous page wall objects
+  if(effectiveIdx>0){
+    const prevObjs=(pages[effectiveIdx-1].objs||[]).filter(o=>!isFloor(o.t));
+    prevObjs.forEach(o=>{
+      const rx=ox+o.x*sc,ry=oy+(W.h-o.y-o.h)*sc,rw=o.w*sc,rh=o.h*sc;
+      c.save();c.globalAlpha=0.28;
+      c.fillStyle=o.color;c.fillRect(rx,ry,rw,rh);
+      c.strokeStyle='rgba(180,180,255,.8)';c.lineWidth=1;c.setLineDash([3,3]);c.strokeRect(rx,ry,rw,rh);
+      c.setLineDash([]);c.restore();
+    });
+  }
 
   // Draw objects
   wallObjs.forEach(o=>{
