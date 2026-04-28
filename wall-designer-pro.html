@@ -1051,12 +1051,73 @@ function drawFloorPlan(){
   c.fillStyle='#0a0a0a';c.fillRect(0,0,fpCV.width,fpCV.height);
   if(fpMode==='wall') drawWallElevationView(c,fpCV.width,fpCV.height);
   else drawFloorPlanView(c,fpCV.width,fpCV.height);
+  drawFpGhost(c);
+  fpCV.style.cursor=placing?'crosshair':'';
+}
+
+let fpGhostCx=null,fpGhostCy=null;
+
+function fpCanvasCoords(e){const r=fpCV.getBoundingClientRect();return{cx:e.clientX-r.left,cy:e.clientY-r.top};}
+function fpSc(){return Math.min((fpCV.width-180)/W.len,(fpCV.height-180)/(fpMode==='wall'?W.h:FLOOR_DEPTH))*fpScale;}
+function fpPlaceObj(cx,cy){
+  const def=ETYPES.find(d=>d.t===placing);if(!def||def.t==='light')return;
+  const sc=fpSc();
+  const ox=fpCV.width/2-W.len/2*sc+fpPanX;
+  if(fpMode==='floor'&&isFloor(def.t)){
+    const oy=fpCV.height/2-FLOOR_DEPTH/2*sc+fpPanY;
+    const x=Math.round(Math.max(0,Math.min(W.len-def.w,(cx-ox)/sc-def.w/2)));
+    const rd=Math.round(Math.max(0,Math.min(FLOOR_DEPTH-def.d,(cy-oy)/sc-def.d/2)));
+    const o=makeObj(def.t,x,0,def.w,def.h,def.d,def.color,def.label);
+    o.rd=rd;if(def.meshKey)o.meshKey=def.meshKey;
+    resolveCollision(o);objs().push(o);sel=o.id;
+    draw();refreshList();refreshEdit();updateSelActions();snapshot();
+  }else if(fpMode==='wall'&&!isFloor(def.t)){
+    const oy=fpCV.height/2-W.h/2*sc+fpPanY;
+    const baseWZ=pages[curP].baseWZ||0;
+    const x=Math.round(Math.max(0,Math.min(W.len-def.w,(cx-ox)/sc-def.w/2)));
+    const y=Math.round(Math.max(0,Math.min(W.h-def.h,W.h-(cy-oy)/sc-def.h/2)));
+    const o=makeObj(def.t,x,y,def.w,def.h,def.d,def.color,def.label);
+    o.wz=baseWZ;if(def.meshKey)o.meshKey=def.meshKey;
+    resolveCollision(o);objs().push(o);sel=o.id;
+    draw();refreshList();refreshEdit();updateSelActions();snapshot();
+  }
+}
+function drawFpGhost(c){
+  if(!placing||fpGhostCx===null)return;
+  const def=ETYPES.find(d=>d.t===placing);if(!def||def.t==='light')return;
+  const sc=fpSc();
+  const ox=fpCV.width/2-W.len/2*sc+fpPanX;
+  if(fpMode==='floor'&&isFloor(def.t)){
+    const oy=fpCV.height/2-FLOOR_DEPTH/2*sc+fpPanY;
+    const rx=ox+Math.max(0,Math.min(W.len-def.w,(fpGhostCx-ox)/sc-def.w/2))*sc;
+    const rz=oy+Math.max(0,Math.min(FLOOR_DEPTH-def.d,(fpGhostCy-oy)/sc-def.d/2))*sc;
+    c.save();c.globalAlpha=0.55;c.fillStyle=def.color;c.fillRect(rx,rz,def.w*sc,def.d*sc);
+    c.strokeStyle='rgba(255,255,255,.8)';c.lineWidth=1.5;c.setLineDash([4,3]);c.strokeRect(rx,rz,def.w*sc,def.d*sc);
+    c.setLineDash([]);c.restore();
+  }else if(fpMode==='wall'&&!isFloor(def.t)){
+    const oy=fpCV.height/2-W.h/2*sc+fpPanY;
+    const rx=ox+Math.max(0,Math.min(W.len-def.w,(fpGhostCx-ox)/sc-def.w/2))*sc;
+    const ry=oy+(W.h-Math.max(0,Math.min(W.h-def.h,W.h-(fpGhostCy-oy)/sc-def.h/2))-def.h)*sc;
+    c.save();c.globalAlpha=0.55;c.fillStyle=def.color;c.fillRect(rx,ry,def.w*sc,def.h*sc);
+    c.strokeStyle='rgba(255,255,255,.8)';c.lineWidth=1.5;c.setLineDash([4,3]);c.strokeRect(rx,ry,def.w*sc,def.h*sc);
+    c.setLineDash([]);c.restore();
+  }
 }
 
 fpCV.addEventListener('wheel',e=>{e.preventDefault();fpScale=Math.max(.15,Math.min(8,fpScale*(e.deltaY<0?1.12:1/1.12)));drawFloorPlan();},{passive:false});
-fpCV.addEventListener('pointerdown',e=>{if(e.button===0){fpDrag={sx:e.clientX,sy:e.clientY,px0:fpPanX,py0:fpPanY};fpCV.setPointerCapture(e.pointerId);}});
-fpCV.addEventListener('pointermove',e=>{if(!fpDrag)return;fpPanX=fpDrag.px0+(e.clientX-fpDrag.sx);fpPanY=fpDrag.py0+(e.clientY-fpDrag.sy);drawFloorPlan();});
+fpCV.addEventListener('pointerdown',e=>{
+  if(e.button!==0)return;
+  if(placing){const{cx,cy}=fpCanvasCoords(e);fpPlaceObj(cx,cy);return;}
+  fpDrag={sx:e.clientX,sy:e.clientY,px0:fpPanX,py0:fpPanY};fpCV.setPointerCapture(e.pointerId);
+});
+fpCV.addEventListener('pointermove',e=>{
+  if(placing){const{cx,cy}=fpCanvasCoords(e);fpGhostCx=cx;fpGhostCy=cy;drawFloorPlan();return;}
+  fpGhostCx=null;fpGhostCy=null;
+  if(!fpDrag)return;fpPanX=fpDrag.px0+(e.clientX-fpDrag.sx);fpPanY=fpDrag.py0+(e.clientY-fpDrag.sy);drawFloorPlan();
+});
 fpCV.addEventListener('pointerup',()=>{fpDrag=null;});
+fpCV.addEventListener('pointerleave',()=>{if(placing){fpGhostCx=null;fpGhostCy=null;drawFloorPlan();}});
+fpCV.addEventListener('contextmenu',e=>{e.preventDefault();if(placing){stopPlacing();drawFloorPlan();}});
 fpCV.addEventListener('dblclick',e=>{
   const rect=fpCV.getBoundingClientRect();
   const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
