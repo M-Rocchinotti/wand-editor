@@ -684,18 +684,21 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
   const _fpGrpKeys=[...new Set(sorted.map(o=>o.label+'|'+o.w+'|'+o.h+'|'+o.d))];
   const _fpGrpNum={};_fpGrpKeys.forEach((k,i)=>_fpGrpNum[k]=i+1);
 
-  sorted.forEach((o,i)=>{
-    const rx=ox+o.x*sc,rz=oy+(o.rd||0)*sc,rw=o.w*sc,rh=o.d*sc;
-    const lane=i; // stagger each object's dims
+  // Lane maps sorted biggest-first so largest value = lane 0 = closest to plan boundary
+  const _fpWLane=new Map();[...floorObjs].sort((a,b)=>b.w-a.w).forEach((o,i)=>_fpWLane.set(o.id,i));
+  const _fpLLane=new Map();[...floorObjs].filter(o=>o.x>0).sort((a,b)=>b.x-a.x).forEach((o,i)=>_fpLLane.set(o.id,i));
+  const _fpRLane=new Map();[...floorObjs].filter(o=>W.len-o.x-o.w>0).sort((a,b)=>(W.len-b.x-b.w)-(W.len-a.x-a.w)).forEach((o,i)=>_fpRLane.set(o.id,i));
 
-    // Width dim — below object, stagger down by lane
-    const wDimY=floorBottom+22+lane*22;
+  sorted.forEach((o)=>{
+    const rx=ox+o.x*sc,rz=oy+(o.rd||0)*sc,rw=o.w*sc,rh=o.d*sc;
+
+    // Width dim — below object, biggest width = closest to boundary
+    const wDimY=floorBottom+22+(_fpWLane.get(o.id)??0)*22;
     fpDimLine(c,rx,wDimY,rx+rw,wDimY,o.w+'mm',-1,'#c8703a');
     // thin leader from object bottom to dim line
     c.save();c.strokeStyle='#c8703a33';c.lineWidth=.5;c.setLineDash([2,3]);
     c.beginPath();c.moveTo(rx+rw/2,rz+rh);c.lineTo(rx+rw/2,wDimY);c.stroke();
     c.setLineDash([]);c.restore();
-
 
     // Distance from wall (rd)
     if((o.rd||0)>0){
@@ -703,9 +706,9 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       fpDimLine(c,rdDimX,wallBottom,rdDimX,rz,(o.rd)+'mm',1,'#b89840');
     }
 
-    // Distance from left wall edge
+    // Distance from left wall edge — biggest left gap = closest to boundary
     if(o.x>0){
-      const fromLeftY=oy-22-lane*20;
+      const fromLeftY=oy-22-(_fpLLane.get(o.id)??0)*20;
       fpDimLine(c,ox,fromLeftY,rx,fromLeftY,o.x+'mm',-1,'#8060c0');
       c.save();c.strokeStyle='#8060c033';c.lineWidth=.5;c.setLineDash([2,3]);
       c.beginPath();c.moveTo(ox,fromLeftY);c.lineTo(ox,oy);c.stroke();
@@ -713,10 +716,10 @@ function drawFloorPlanView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
       c.setLineDash([]);c.restore();
     }
 
-    // Distance from right wall edge
+    // Distance from right wall edge — biggest right gap = closest to boundary
     const fromRight=W.len-o.x-o.w;
     if(fromRight>0){
-      const fromRightY=oy-22-(lane+1)*20;
+      const fromRightY=oy-22-((_fpRLane.get(o.id)??0)+1)*20;
       fpDimLine(c,rx+rw,fromRightY,ox+W.len*sc,fromRightY,fromRight+'mm',-1,'#60a080');
     }
 
@@ -837,15 +840,15 @@ function drawWallElevationView(c,cvW,cvH,pageIdx,margin=90,showMat=true){
 
   const drawnNearV=new Set();
 
-  // Pre-compute sorted lane maps — smallest value = lane 0 = nearest to plan boundary
+  // Pre-compute sorted lane maps — biggest value = lane 0 = nearest to plan boundary
   const _hLObjs=sorted.filter(o=>{const fl=o.x,fr=W.len-o.x-o.w;return fl<=fr&&fl>0;});
   const _hRObjs=sorted.filter(o=>{const fl=o.x,fr=W.len-o.x-o.w;return fr<fl&&fr>0;});
-  _hLObjs.sort((a,b)=>a.x-b.x);
-  _hRObjs.sort((a,b)=>(W.len-a.x-a.w)-(W.len-b.x-b.w));
+  _hLObjs.sort((a,b)=>b.x-a.x);
+  _hRObjs.sort((a,b)=>(W.len-b.x-b.w)-(W.len-a.x-a.w));
   const _hLL=new Map();_hLObjs.forEach((o,i)=>_hLL.set(o,i));
   const _hRL=new Map();_hRObjs.forEach((o,i)=>_hRL.set(o,i));
-  const _vFVals=[...new Set(sorted.filter(o=>{const fl=o.y,fc=W.h-o.y-o.h;return fl<=fc&&fl>0;}).map(o=>o.y))].sort((a,b)=>a-b);
-  const _vCVals=[...new Set(sorted.filter(o=>{const fl=o.y,fc=W.h-o.y-o.h;return fc<fl&&fc>0;}).map(o=>W.h-o.y-o.h))].sort((a,b)=>a-b);
+  const _vFVals=[...new Set(sorted.filter(o=>{const fl=o.y,fc=W.h-o.y-o.h;return fl<=fc&&fl>0;}).map(o=>o.y))].sort((a,b)=>b-a);
+  const _vCVals=[...new Set(sorted.filter(o=>{const fl=o.y,fc=W.h-o.y-o.h;return fc<fl&&fc>0;}).map(o=>W.h-o.y-o.h))].sort((a,b)=>b-a);
   const _vFL=new Map();_vFVals.forEach((v,i)=>_vFL.set(v,i));
   const _vCL=new Map();_vCVals.forEach((v,i)=>_vCL.set(v,i));
 
