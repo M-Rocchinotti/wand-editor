@@ -7,7 +7,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#000000;--s1:#0a0a0a;--s2:#111111;--s3:#181818;--b1:#1f1f1f;--b2:#2a2a2a;--tx:#e8e8e8;--mu:#555555;--fa:#333333;--ac:#ffffff;--ad:#444444;--ab:#0f0f0f}
+:root{--bg:#000000;--s1:#0a0a0a;--s2:#111111;--s3:#181818;--b1:#1f1f1f;--b2:#2a2a2a;--tx:#ffffff;--mu:#aaaaaa;--fa:#666666;--ac:#ffffff;--ad:#444444;--ab:#0f0f0f}
+body.light{--bg:#f0f0f0;--s1:#ffffff;--s2:#f5f5f5;--s3:#ebebeb;--b1:#e0e0e0;--b2:#cccccc;--tx:#000000;--mu:#555555;--fa:#aaaaaa;--ac:#000000;--ad:#cccccc;--ab:#f8f8f8}
+body.light .vbtn{background:rgba(255,255,255,.92);border-color:rgba(0,0,0,.12)}
+body.light .vbtn:hover{background:rgba(240,240,240,.98);color:var(--tx)}
+body.light .nav-hint{color:rgba(0,0,0,.2)}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:'Inter',sans-serif}
 .app{display:flex;height:100vh}
 .side{width:300px;flex-shrink:0;height:100vh;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column}
@@ -38,7 +42,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .el-cat{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--mu);margin:7px 0 3px;font-family:'Inter',sans-serif}
 .el-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;cursor:pointer;font-size:10px;color:var(--mu);user-select:none;transition:all .14s}
 .el-chip:hover{background:var(--s3);border-color:var(--b2);color:var(--tx)}
-.el-chip.active{border-color:var(--ac);color:#000000;background:#ffffff}
+.el-chip.active{border-color:var(--ac);color:var(--bg);background:var(--tx)}
 .el-ico{width:22px;height:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .ob{display:flex;align-items:center;gap:4px;padding:5px 7px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;margin-bottom:3px;cursor:pointer;font-size:10px;color:var(--mu);transition:all .14s}
 .ob:hover,.ob.on{border-color:var(--ac);color:var(--tx)}
@@ -219,9 +223,12 @@ body.print-mode .print-overlay{display:flex}
 <div class="panel-overlay" id="overlay" onclick="closePanel()"></div>
 <div class="app">
 <aside class="side" id="side">
-  <div class="side-head">
-    <div class="logo">WALL<em>STUDIO</em></div>
-    <div class="logo-sub" data-i18n="subtitle">elevation designer · mm</div>
+  <div class="side-head" style="display:flex;align-items:flex-start;justify-content:space-between">
+    <div>
+      <div class="logo">WALL<em>STUDIO</em></div>
+      <div class="logo-sub" data-i18n="subtitle">elevation designer · mm</div>
+    </div>
+    <button id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark" style="background:none;border:1px solid var(--b2);border-radius:2px;color:var(--mu);cursor:pointer;font-size:13px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;transition:color .12s,border-color .12s">☾</button>
   </div>
   <div class="lang-bar" id="lang-bar"></div>
   <div class="side-body">
@@ -359,7 +366,7 @@ const FLOOR_DEPTH=2000;
 // ─── UNDO / REDO ───
 const undoStack=[], redoStack=[];
 function snapshot(){
-  const state=JSON.stringify({wall:{...W,col:{...W.col}},light:{...LT},curP,pages:pages.map(p=>({name:p.name,objs:p.objs.map(o=>({...o}))}))});
+  const state=JSON.stringify({wall:{...W,col:{...W.col}},light:{...LT},curP,pages:pages.map(p=>({name:p.name,baseWZ:p.baseWZ||0,objs:p.objs.map(o=>({...o}))}))});
   if(undoStack.length&&undoStack[undoStack.length-1]===state)return;
   undoStack.push(state);if(undoStack.length>60)undoStack.shift();
   redoStack.length=0;updateUndoUI();
@@ -379,7 +386,7 @@ function applySnapshot(state){
   pages.length=0;let maxId=0;
   d.pages.forEach(p=>{
     const os=p.objs.map(o=>{maxId=Math.max(maxId,o.id);return{...o,_p:1};});
-    pages.push({name:p.name,objs:os});
+    pages.push({name:p.name,baseWZ:p.baseWZ||0,objs:os});
   });
   nextId=maxId+1;curP=Math.min(d.curP,pages.length-1);sel=null;multiSel.clear();
   buildTabs();buildDots();refreshList();refreshEdit();draw();updateUndoUI();
@@ -1196,7 +1203,7 @@ async function exportPDF(){
 function shareLink(){
   try{
     const data={v:7,wall:{...W,col:{...W.col}},light:{...LT},curP,
-      pages:pages.map(p=>({name:p.name,objs:p.objs.map(o=>({id:o.id,t:o.t,x:o.x,y:o.y,w:o.w,h:o.h,d:o.d,wz:o.wz||0,color:o.color,label:o.label,rd:o.rd||0,locked:!!o.locked}))}))};
+      pages:pages.map(p=>({name:p.name,baseWZ:p.baseWZ||0,objs:p.objs.map(o=>({id:o.id,t:o.t,x:o.x,y:o.y,w:o.w,h:o.h,d:o.d,wz:o.wz||0,color:o.color,label:o.label,rd:o.rd||0,locked:!!o.locked}))}))};
     const json=JSON.stringify(data);
     const b64=btoa(unescape(encodeURIComponent(json)));
     const url=location.href.split('#')[0]+'#'+b64;
@@ -1427,6 +1434,21 @@ function draw(){
     g.addColorStop(0,`rgba(255,245,190,${LT.i*.12})`);g.addColorStop(1,'rgba(0,0,0,0)');
     ctx.save();ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
   }
+  // Ghost: previous page objects drawn at low opacity
+  if(curP>0){
+    const prevObjs=pages[curP-1].objs.filter(o=>o._p>0.01).slice().sort((a,b)=>{
+      const ma=isFloor(a.t)?(a.rd||0)+a.d:(a.wz||0)+a.d;
+      const mb=isFloor(b.t)?(b.rd||0)+b.d:(b.wz||0)+b.d;
+      return ma-mb;
+    });
+    ctx.save();ctx.globalAlpha=0.22;
+    for(const o of prevObjs){
+      if(o.meshKey)drawMeshObj(o);
+      else if(isFloor(o.t))drawFloorObj(o);
+      else drawWallObj(o);
+    }
+    ctx.restore();
+  }
   const all=objs().filter(o=>o._p>0.01).slice().sort((a,b)=>{
     const ma=isFloor(a.t)?(a.rd||0)+a.d:(a.wz||0)+a.d;
     const mb=isFloor(b.t)?(b.rd||0)+b.d:(b.wz||0)+b.d;
@@ -1585,13 +1607,14 @@ function drawGhost(){
       dimLineV(hbx-16*SC,hby,hbx-16*SC,hty,'rgba(200,112,58,.9)',def.h,null);
     }
   } else {
-    const{x,y}=screenToWall(ghostPx,ghostPy,0);
+    const baseWZ=pages[curP].baseWZ||0;
+    const{x,y}=screenToWall(ghostPx,ghostPy,baseWZ);
     const wx=Math.max(0,Math.min(W.len-def.w,x-def.w/2));
     const wy=Math.max(0,Math.min(W.h-def.h,y-def.h/2));
-    const testW={t:def.t,x:wx,y:wy,w:def.w,h:def.h,d:def.d,wz:0,id:-1,_p:1};
+    const testW={t:def.t,x:wx,y:wy,w:def.w,h:def.h,d:def.d,wz:baseWZ,id:-1,_p:1};
     const col=hasCollision(testW)?'#e04040':def.color;
     if(def.meshKey){ctx.globalAlpha=0.5;drawMeshObj({...testW,meshKey:def.meshKey,color:col,rd:0,label:def.label});ctx.globalAlpha=1;}
-    else wallBox(wx,wy,def.w,def.h,def.d,col,lt(col,18),dk(col,18),1,true,null,0);
+    else wallBox(wx,wy,def.w,def.h,def.d,col,lt(col,18),dk(col,18),1,true,null,baseWZ);
     const[tlx,tly]=iso(wx,wy+def.h,0.5),[trx,try_]=iso(wx+def.w,wy+def.h,0.5);
     dimLineH(tlx,tly-12*SC,trx,try_-12*SC,'rgba(200,112,58,.9)',def.w,null);
     const[blx,bly]=iso(wx,wy,0.5),[btlx,btly]=iso(wx,wy+def.h,0.5);
@@ -1811,9 +1834,11 @@ cv.addEventListener('pointerdown',e=>{
       objs().push(o);sel=o.id;ghostPx=null;ghostPy=null;
       draw();refreshList();refreshEdit();updateSelActions();snapshot();return;
     }
-    const{x,y}=screenToWall(px,py,0);
+    const baseWZ=pages[curP].baseWZ||0;
+    const{x,y}=screenToWall(px,py,baseWZ);
     if(x<-50||x>W.len+50||y<-50||y>W.h+50){toast(t('clickWall'));return;}
     const o=makeObj(def.t,Math.round(Math.max(0,Math.min(W.len-def.w,x-def.w/2))),Math.round(Math.max(0,Math.min(W.h-def.h,y-def.h/2))),def.w,def.h,def.d,def.color,def.label);
+    o.wz=baseWZ;
     if(def.meshKey)o.meshKey=def.meshKey;
     resolveCollision(o);
     objs().push(o);sel=o.id;ghostPx=null;ghostPy=null;
@@ -1908,7 +1933,12 @@ function loadTex(inp){const f=inp.files[0];if(!f||!sel)return;const r=new FileRe
 function clearTex(){if(!sel)return;delete TC[sel];const o=objs().find(b=>b.id===sel);if(o)o.texUrl=null;draw();refreshEdit();}
 
 // ─── PAGES ───
-function addPage(){pages.push({name:`Page ${pages.length+1}`,objs:[]});goTo(pages.length-1);}
+function addPage(){
+  const prev=pages[pages.length-1];
+  const baseWZ=prev.objs.filter(o=>!isFloor(o.t)).reduce((m,o)=>Math.max(m,(o.wz||0)+o.d),0);
+  pages.push({name:`Page ${pages.length+1}`,objs:[],baseWZ});
+  goTo(pages.length-1);
+}
 function renamePage(i){const n=prompt(t('rename'),pages[i].name);if(n&&n.trim()){pages[i].name=n.trim();buildTabs();buildDots();}}
 function goTo(n){if(n===curP)return;stopPlacing();sel=null;curP=n;buildTabs();buildDots();document.getElementById('sn').textContent=t('pageOf',curP+1,pages.length);document.getElementById('st').textContent=pages[curP].name;draw();refreshList();refreshEdit();}
 function go(dir){const n=Math.max(0,Math.min(pages.length-1,curP+dir));if(n!==curP)goTo(n);}
@@ -2113,7 +2143,7 @@ function applyScene(txt){
         if(o.texUrl&&o.texUrl.startsWith('data:')){const img=new Image();img.src=o.texUrl;img.onload=()=>{TC[o.id]=img;draw();};TC[o.id]=img;}
         return obj;
       });
-      pages.push({name:p.name,objs:os});
+      pages.push({name:p.name,baseWZ:p.baseWZ||0,objs:os});
     });
     nextId=maxId+1;curP=Math.min(data.curP??0,pages.length-1);sel=null;
     buildTabs();buildDots();
@@ -2739,6 +2769,19 @@ function buildLangBar(){
     bar.appendChild(b);
   });
 }
+
+// ─── THEME ───
+function toggleTheme(){
+  const light=document.body.classList.toggle('light');
+  document.getElementById('theme-btn').textContent=light?'☀':'☾';
+  localStorage.setItem('theme',light?'light':'dark');
+}
+(function(){
+  if(localStorage.getItem('theme')==='light'){
+    document.body.classList.add('light');
+    document.getElementById('theme-btn').textContent='☀';
+  }
+})();
 
 // ─── INIT ───
 buildLangBar();applyLang();buildMaterialGrid();
