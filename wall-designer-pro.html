@@ -318,7 +318,7 @@ body.print-mode .print-overlay{display:flex}
       <div class="view-toolbar-row">
         <button class="vbtn" id="undo-btn" onclick="undo()" title="Undo Ctrl+Z" disabled>↩ Undo</button>
         <button class="vbtn" id="redo-btn" onclick="redo()" title="Redo Ctrl+Y" disabled>↪ Redo</button>
-        <button class="vbtn" id="snap-btn" onclick="toggleSnap()" title="Snap to objects">⊕ Magnet</button>
+        <button class="vbtn" id="snap-btn" title="Hold Ctrl while dragging to snap">⊕ Magnet: Ctrl</button>
       </div>
       <div class="view-toolbar-row">
         <button class="vbtn" id="fp-btn" onclick="toggleFloorPlan()" title="2D Floor Plan">⊞ Plan</button>
@@ -1909,8 +1909,6 @@ function resolveCollision(o){
 }
 
 // ─── SNAP ───
-let snapEnabled=false;
-function toggleSnap(){snapEnabled=!snapEnabled;const b=document.getElementById('snap-btn');if(b)b.classList.toggle('active',snapEnabled);}
 const SNAP_PX=18;
 function snapWall(nx,ny,obj){
   const thr=SNAP_PX/SC;let bx=nx,by=ny,mdx=thr,mdy=thr;
@@ -2019,6 +2017,8 @@ cv.addEventListener('pointermove',e=>{
   if(dragLt){const{x,y}=screenToWall(px,py);LT.x=x;LT.y=y;draw();return;}
   if(placing){ghostPx=px;ghostPy=py;draw();return;}
   if(rbStart){updateRubberBand(px,py);return;}
+  const snap=e.ctrlKey||e.metaKey;
+  const sb=document.getElementById('snap-btn');if(sb)sb.classList.toggle('active',snap&&!!dragObj);
   if(dragObj){
     const delta={dx:0,dy:0,drd:0};
     if(isFloor(dragObj.t)){
@@ -2026,7 +2026,7 @@ cv.addEventListener('pointermove',e=>{
       let newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,wx-dragOX)));
       const wzC=Math.max(0,Math.min(FLOOR_DEPTH,wz));
       let newRd=Math.max(0,Math.min(FLOOR_DEPTH-dragObj.d,Math.round(wzC-dragOY)));
-      if(snapEnabled){const s=snapFloor(newX,newRd,dragObj);newX=s.x;newRd=s.rd;}
+      if(snap){const s=snapFloor(newX,newRd,dragObj);newX=s.x;newRd=s.rd;}
       delta.dx=newX-dragObj.x;delta.drd=newRd-(dragObj.rd||0);
       const prev={x:dragObj.x,rd:dragObj.rd};
       dragObj.x=newX;dragObj.rd=newRd;
@@ -2035,7 +2035,7 @@ cv.addEventListener('pointermove',e=>{
       const{x,y}=screenToWall(px,py,dragObj.wz||0);
       let newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,x-dragOX)));
       let newY=Math.round(Math.max(0,Math.min(W.h-dragObj.h,y-dragOY)));
-      if(snapEnabled){const s=snapWall(newX,newY,dragObj);newX=s.x;newY=s.y;}
+      if(snap){const s=snapWall(newX,newY,dragObj);newX=s.x;newY=s.y;}
       delta.dx=newX-dragObj.x;delta.dy=newY-dragObj.y;
       const prev={x:dragObj.x,y:dragObj.y};
       dragObj.x=newX;dragObj.y=newY;
