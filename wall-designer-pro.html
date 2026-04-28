@@ -541,13 +541,20 @@ function setFpMode(mode){
   drawFloorPlan();
 }
 
+function syncFpMode(){
+  const hasFloor=objs().some(o=>isFloor(o.t));
+  const tab=document.getElementById('fp-tab-floor');
+  if(tab)tab.style.display=hasFloor?'':'none';
+  if(!hasFloor&&fpMode==='floor'){fpMode='wall';if(tab)tab.classList.remove('on');const tw=document.getElementById('fp-tab-wall');if(tw)tw.classList.add('on');}
+}
+
 function toggleFloorPlan(){
   fpVisible=!fpVisible;
   fpCV.style.display=fpVisible?'block':'none';
   document.getElementById('fp-tabs').style.display=fpVisible?'flex':'none';
   const btn=document.getElementById('fp-btn');
   if(btn){btn.classList.toggle('active',fpVisible);btn.textContent=fpVisible?'⊟ 3D':'⊞ Plan';}
-  if(fpVisible){fpScale=1;fpPanX=0;fpPanY=0;drawFloorPlan();}
+  if(fpVisible){fpScale=1;fpPanX=0;fpPanY=0;syncFpMode();drawFloorPlan();}
 }
 
 // ── shared drawing helpers ──────────────────────────────────────────────
@@ -1569,7 +1576,7 @@ function draw(){
   drawRulers();
   if(sel)drawSelDims();
   flushDims();
-  if(fpVisible)drawFloorPlan();
+  if(fpVisible){syncFpMode();drawFloorPlan();}
 }
 
 function drawFloor(){
