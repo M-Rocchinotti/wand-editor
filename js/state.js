@@ -63,6 +63,7 @@ let rbStart=null,rbActive=false;
 
 // ─── POINTER STATE ───
 let sel=null,dragObj=null,dragLt=false,dragOX=0,dragOY=0;
+let axisLock=null,dragStartPos={x:0,y:0,rd:0};
 let navDrag=null,pinchDist0=null,pinchSC0=1,touch2Start=null;
 let clipboard=null;
 

@@ -69,6 +69,16 @@ function hitFloor(o,px,py){
 function hitO(o,px,py){return isFloor(o.t)?hitFloor(o,px,py):hitWall(o,px,py);}
 function hitLt(px,py){const[lx,ly]=wp(LT.x,LT.y);return Math.sqrt((px-lx)**2+(py-ly)**2)<18;}
 
+// ─── CENTER ON WALL ───
+function centerOnWall(){
+  const o=objs().find(b=>b.id===sel);
+  if(!o){toast(t('selectFirst'),1500);return;}
+  if(o.locked)return;
+  o.x=Math.round((W.len-o.w)/2);
+  if(!isFloor(o.t))o.y=Math.round((W.h-o.h)/2);
+  draw();refreshList();refreshEdit();snapshot();
+}
+
 // ─── COPY / PASTE ───
 function copyObj(id){const o=objs().find(b=>b.id===id);if(!o)return;clipboard={...o};toast(t('copied'),1500);}
 function pasteObj(){

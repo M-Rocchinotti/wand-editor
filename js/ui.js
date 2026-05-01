@@ -68,35 +68,44 @@ function refreshEdit(){
   _li.oninput=()=>{if(_li.value.trim()){o.label=_li.value.trim();document.getElementById('ebh').textContent=o.label;refreshList();if(fpVisible)drawFloorPlan();}};
   _li.onblur=()=>{if(_li.value.trim()!==o.label&&_li.value.trim())snapshot();};
   _li.onkeydown=e=>{if(e.key==='Enter'){_li.blur();}if(e.key==='Escape'){_li.value=o.label;}};
+  const syncDist=()=>{
+    const set=(sel2,val)=>{const r=flds.querySelector(`[data-fld="${sel2}"]`);if(!r)return;r.querySelector('.cmr').value=val;r.querySelector('.cmi').value=val;};
+    set('x',Math.round(o.x));
+    set('fromRight',Math.round(W.len-o.w-o.x));
+    if(!isFloor(o.t)){
+      set('y',Math.round(o.y));
+      set('fromTop',Math.round(W.h-o.h-o.y));
+    }
+  };
   const addF=(lbl,key,mn,mx,st)=>{
-    const row=document.createElement('div');row.className='cr';
+    const row=document.createElement('div');row.className='cr';row.dataset.fld=key;
     row.innerHTML=`<span class="rl">${lbl}</span><input type="range" class="cmr" min="${mn}" max="${mx}" step="${st}" value="${Math.round(o[key]||0)}" id="efr-${key}"><input type="number" class="cmi" value="${Math.round(o[key]||0)}" id="efn-${key}"><span class="cmu">mm</span>`;
     flds.appendChild(row);
     const r2=document.getElementById('efr-'+key),n=document.getElementById('efn-'+key);
-    r2.oninput=()=>{n.value=r2.value;o[key]=+r2.value;draw();refreshList();};
-    n.onchange=()=>{r2.value=n.value;o[key]=+n.value;draw();refreshList();};
+    r2.oninput=()=>{n.value=r2.value;o[key]=+r2.value;draw();refreshList();syncDist();};
+    n.onchange=()=>{r2.value=n.value;o[key]=+n.value;draw();refreshList();syncDist();};
   };
-  const addD=(lbl,val,mn,mx,onSet)=>{
-    const row=document.createElement('div');row.className='cr';
+  const addD=(lbl,fld,val,mn,mx,onSet)=>{
+    const row=document.createElement('div');row.className='cr';row.dataset.fld=fld;
     row.innerHTML=`<span class="rl">${lbl}</span><input type="range" class="cmr" min="${mn}" max="${mx}" step="1" value="${val}"><input type="number" class="cmi" value="${val}"><span class="cmu">mm</span>`;
     flds.appendChild(row);
     const r2=row.querySelector('.cmr'),n=row.querySelector('.cmi');
-    r2.oninput=()=>{n.value=r2.value;onSet(+r2.value);};
-    n.onchange=()=>{r2.value=n.value;onSet(+n.value);};
+    r2.oninput=()=>{n.value=r2.value;onSet(+r2.value);syncDist();};
+    n.onchange=()=>{r2.value=n.value;onSet(+n.value);syncDist();};
   };
   addF(t('width'),'w',10,6000,10);addF(t('height'),'h',5,3000,5);
   if(isFloor(o.t)){
     addF(t('depth'),'d',10,FLOOR_DEPTH,5);
     addF(t('distFromWall'),'rd',0,Math.max(0,FLOOR_DEPTH-o.d),10);
     addF(t('fromLeft'),'x',0,Math.max(0,W.len-o.w),10);
-    addD(t('fromRight'),Math.round(W.len-o.x-o.w),0,Math.max(0,W.len-o.w),v=>{o.x=Math.max(0,Math.min(W.len-o.w,W.len-o.w-v));draw();refreshList();});
+    addD(t('fromRight'),'fromRight',Math.round(W.len-o.x-o.w),0,Math.max(0,W.len-o.w),v=>{o.x=Math.max(0,Math.min(W.len-o.w,W.len-o.w-v));draw();refreshList();});
   } else {
     addF(t('protrusion'),'d',1,FLOOR_DEPTH,5);
     addF(t('awayFromWall'),'wz',0,FLOOR_DEPTH,5);
     addF(t('fromLeft'),'x',0,Math.max(0,W.len-o.w),10);
-    addD(t('fromRight'),Math.round(W.len-o.x-o.w),0,Math.max(0,W.len-o.w),v=>{o.x=Math.max(0,Math.min(W.len-o.w,W.len-o.w-v));draw();refreshList();});
+    addD(t('fromRight'),'fromRight',Math.round(W.len-o.x-o.w),0,Math.max(0,W.len-o.w),v=>{o.x=Math.max(0,Math.min(W.len-o.w,W.len-o.w-v));draw();refreshList();});
     addF(t('fromFloor'),'y',0,Math.max(0,W.h-o.h),5);
-    addD(t('fromTop'),Math.round(W.h-o.y-o.h),0,Math.max(0,W.h-o.h),v=>{o.y=Math.max(0,Math.min(W.h-o.h,W.h-o.h-v));draw();refreshList();});
+    addD(t('fromTop'),'fromTop',Math.round(W.h-o.y-o.h),0,Math.max(0,W.h-o.h),v=>{o.y=Math.max(0,Math.min(W.h-o.h,W.h-o.h-v));draw();refreshList();});
   }
   document.getElementById('ce').value=o.color;
   document.getElementById('fc-sel').style.background=o.color;

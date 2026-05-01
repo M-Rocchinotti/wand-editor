@@ -50,11 +50,13 @@ cv.addEventListener('pointerdown',e=>{
       if(e.shiftKey){toggleMultiSel(o.id);return;}
       if(multiSel.size>0&&multiSel.has(o.id)){
         dragObj=o;cv.style.cursor='grabbing';
+        dragStartPos={x:o.x,y:o.y,rd:o.rd||0};
         if(isFloor(o.t)){const{wx,wz}=screenToFloor(px,py);dragOX=wx-o.x;dragOY=wz-(o.rd||0);}
         else{const{x,y}=screenToWall(px,py,o.wz||0);dragOX=x-o.x;dragOY=y-o.y;}
         draw();return;
       }
       clearMultiSel();sel=o.id;dragObj=o;cv.style.cursor='grabbing';
+      dragStartPos={x:o.x,y:o.y,rd:o.rd||0};
       if(isFloor(o.t)){const{wx,wz}=screenToFloor(px,py);dragOX=wx-o.x;dragOY=wz-(o.rd||0);}
       else{const{x,y}=screenToWall(px,py,o.wz||0);dragOX=x-o.x;dragOY=y-o.y;}
       draw();refreshList();refreshEdit();return;
@@ -80,6 +82,8 @@ cv.addEventListener('pointermove',e=>{
       let newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,wx-dragOX)));
       const wzC=Math.max(0,Math.min(FLOOR_DEPTH,wz));
       let newRd=Math.max(0,Math.min(FLOOR_DEPTH-dragObj.d,Math.round(wzC-dragOY)));
+      if(axisLock==='x')newRd=dragStartPos.rd;
+      if(axisLock==='y')newX=dragStartPos.x;
       if(snap){const s=snapFloor(newX,newRd,dragObj);newX=s.x;newRd=s.rd;}
       delta.dx=newX-dragObj.x;delta.drd=newRd-(dragObj.rd||0);
       const prev={x:dragObj.x,rd:dragObj.rd};
@@ -89,6 +93,8 @@ cv.addEventListener('pointermove',e=>{
       const{x,y}=screenToWall(px,py,dragObj.wz||0);
       let newX=Math.round(Math.max(0,Math.min(W.len-dragObj.w,x-dragOX)));
       let newY=Math.round(Math.max(0,Math.min(W.h-dragObj.h,y-dragOY)));
+      if(axisLock==='x')newY=dragStartPos.y;
+      if(axisLock==='y')newX=dragStartPos.x;
       if(snap){const s=snapWall(newX,newY,dragObj);newX=s.x;newY=s.y;}
       delta.dx=newX-dragObj.x;delta.dy=newY-dragObj.y;
       const prev={x:dragObj.x,y:dragObj.y};
@@ -156,7 +162,17 @@ document.addEventListener('keydown',e=>{
   if(document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA')return;
   if(e.key==='ArrowDown'||e.key==='PageDown')go(1);
   if(e.key==='ArrowUp'||e.key==='PageUp')go(-1);
-  if(e.key==='Escape'){stopPlacing();clearMultiSel();sel=null;draw();refreshList();refreshEdit();}
+  if(e.key==='Escape'){stopPlacing();clearMultiSel();sel=null;axisLock=null;draw();refreshList();refreshEdit();}
+  if((e.key==='x'||e.key==='X')&&!e.ctrlKey&&!e.metaKey){
+    axisLock=axisLock==='x'?null:'x';
+    if(axisLock==='x'&&dragObj)dragStartPos={x:dragObj.x,y:dragObj.y,rd:dragObj.rd||0};
+    draw();
+  }
+  if((e.key==='y'||e.key==='Y')&&!e.ctrlKey&&!e.metaKey){
+    axisLock=axisLock==='y'?null:'y';
+    if(axisLock==='y'&&dragObj)dragStartPos={x:dragObj.x,y:dragObj.y,rd:dragObj.rd||0};
+    draw();
+  }
   if((e.key==='Delete'||e.key==='Backspace')&&!e.ctrlKey&&!e.metaKey){e.preventDefault();
     if(multiSel.size>0){[...multiSel].forEach(id=>doDelete(id));multiSel.clear();}else doDelete();}
   if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}

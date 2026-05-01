@@ -127,6 +127,15 @@ function draw(){
   });
   drawLtIcon();
   drawGhost();
+  if(axisLock){
+    ctx.save();
+    ctx.font='bold 13px monospace';
+    ctx.fillStyle=axisLock==='x'?'#e05555':'#5577e0';
+    ctx.globalAlpha=0.9;
+    const label=axisLock==='x'?'⟷ H-LOCK':'↕ V-LOCK';
+    ctx.fillText(label,12,cv.height-12);
+    ctx.restore();
+  }
   drawRulers();
   if(sel)drawSelDims();
   flushDims();

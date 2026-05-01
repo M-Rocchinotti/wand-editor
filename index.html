@@ -70,6 +70,7 @@
         <div id="ef"></div>
         <button id="del-sel-btn2" style="width:100%;margin-top:10px;padding:7px;background:rgba(200,60,60,.12);border:1px solid rgba(200,60,60,.35);border-radius:5px;color:#e05555;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;letter-spacing:.05em" data-i18n="deleteSelected">✕ Delete selected</button>
         <button onclick="toggleLock()" id="lock-btn" style="width:100%;margin-top:4px;padding:7px;background:var(--s2);border:1px solid var(--b2);border-radius:5px;color:var(--mu);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;letter-spacing:.05em" data-i18n="lockObj">⊠ Lock object</button>
+        <button onclick="centerOnWall()" id="center-btn" style="width:100%;margin-top:4px;padding:7px;background:var(--s2);border:1px solid var(--b2);border-radius:5px;color:var(--mu);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;letter-spacing:.05em" data-i18n="centerOnWall">⊞ Center on wall</button>
         <div class="krow" style="margin-top:7px"><span class="kl" data-i18n="color">Color</span><div class="csw"><div class="csf" id="fc-sel" style="background:#8a6838"></div><input type="color" value="#8a6838" id="ce" oninput="setSelC(this.value)"></div></div>
         <div style="margin-top:7px">
           <div style="font-size:8px;letter-spacing:.11em;text-transform:uppercase;color:var(--fa);margin-bottom:3px" data-i18n="texture">Texture</div>
@@ -108,6 +109,10 @@
         <button class="vbtn" id="undo-btn" onclick="undo()" title="Undo Ctrl+Z" disabled>↩ Undo</button>
         <button class="vbtn" id="redo-btn" onclick="redo()" title="Redo Ctrl+Y" disabled>↪ Redo</button>
         <button class="vbtn" id="snap-btn" title="Hold Ctrl while dragging to snap">⊕ Magnet: Ctrl</button>
+      </div>
+      <div class="view-toolbar-row">
+        <button class="vbtn" onclick="if(sel)copyObj(sel)" data-i18n-title="copy" title="Copy selected (Ctrl+C)"><span class="vbtn-ico">⎘</span><span data-i18n="copy">Copy</span></button>
+        <button class="vbtn" onclick="pasteObj()" data-i18n-title="paste" title="Paste (Ctrl+V)"><span class="vbtn-ico">⎗</span><span data-i18n="paste">Paste</span></button>
       </div>
       <div class="view-toolbar-row">
         <button class="vbtn" id="fp-btn" onclick="toggleFloorPlan()" title="2D Floor Plan">⊞ Plan</button>
