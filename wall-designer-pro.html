@@ -984,6 +984,9 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
   const effectiveIdx=pageIdx!==undefined?pageIdx:curP;
   const pg=pages[effectiveIdx];
   const allObjs=pg?pg.objs:objs();
+  const wallObjs=allObjs.filter(o=>!isFloor(o.t));
+  const floorObjs=allObjs.filter(o=>isFloor(o.t));
+
   const sc=Math.min((cvW-margin*2)/FLOOR_DEPTH,(cvH-margin*2)/W.h)*fpScale;
   const ox=cvW/2-FLOOR_DEPTH/2*sc+fpPanX;
   const oy=cvH/2-W.h/2*sc+fpPanY;
@@ -1012,10 +1015,7 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
   c.beginPath();c.moveTo(ox,roomBottom-80*sc);c.lineTo(roomRight,roomBottom-80*sc);c.stroke();
   c.setLineDash([]);c.restore();
 
-  const wallObjs=allObjs.filter(o=>!isFloor(o.t));
-  const floorObjs=allObjs.filter(o=>isFloor(o.t));
-
-  // Wall objects: wz=offset from wall face, d=depth into room
+  // ── Draw objects ──
   wallObjs.forEach(o=>{
     const wz=o.wz||0;
     const rx=ox+wz*sc,ry=oy+(W.h-o.y-o.h)*sc,rw=o.d*sc,rh=o.h*sc;
@@ -1033,8 +1033,6 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
     }
     c.restore();
   });
-
-  // Floor objects: rd=dist from wall face, d=depth, h=height
   floorObjs.forEach(o=>{
     const rx=ox+(o.rd||0)*sc,ry=oy+(W.h-o.h)*sc,rw=o.d*sc,rh=o.h*sc;
     c.save();c.fillStyle=fpT('rgba(0,0,0,.25)','rgba(0,0,0,.08)');c.fillRect(rx+2,ry+2,rw,rh);c.restore();
@@ -1049,13 +1047,101 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
     c.restore();
   });
 
-  // Overall dims
+  // ── ANNOTATIONS ──
+  const _annPal=['#4a9eff','#ff6b4a','#4aff9e','#ff4ab8','#ffe44a','#b84aff','#4afff0','#ff9e4a','#ff4a4a','#a0ff4a'];
+  const allAnnot=[...wallObjs,...floorObjs];
+  const _grpKeys=[...new Set(allAnnot.map(o=>o.label+'|'+o.d+'|'+o.h))];
+  const _grpNum={};_grpKeys.forEach((k,i)=>_grpNum[k]=i+1);
+  const _annCol=o=>_annPal[(_grpNum[o.label+'|'+o.d+'|'+o.h]-1)%_annPal.length];
+
+  // Precompute lane ordering for staggering
+  // H-above lanes: offset from wall (wz/rd), sorted smallest first = closest to wall face = lane 0
+  // H-below lanes: depth (d), sorted biggest first = lane 0
+  // V-left lanes: from-floor (y), sorted smallest first = lane 0
+  // V-right lanes: height (h), sorted biggest first = lane 0
+  const _sortedByNear=[...allAnnot].sort((a,b)=>(a.wz||a.rd||0)-(b.wz||b.rd||0));
+  const _nearLane=new Map();_sortedByNear.forEach((o,i)=>_nearLane.set(o.id,i));
+  const _sortedByD=[...allAnnot].sort((a,b)=>b.d-a.d);
+  const _dLane=new Map();_sortedByD.forEach((o,i)=>_dLane.set(o.id,i));
+  const _sortedByFloor=[...wallObjs].filter(o=>o.y>0).sort((a,b)=>b.y-a.y);
+  const _floorLane=new Map();_sortedByFloor.forEach((o,i)=>_floorLane.set(o.id,i));
+  const _sortedByH=[...allAnnot].sort((a,b)=>b.h-a.h);
+  const _hLane=new Map();_sortedByH.forEach((o,i)=>_hLane.set(o.id,i));
+
+  const drawnNear=new Set(),drawnD=new Set(),drawnH=new Set();
+
+  allAnnot.forEach(o=>{
+    const floor=isFloor(o.t);
+    const near=floor?(o.rd||0):(o.wz||0);
+    const rx=ox+near*sc;
+    const ry=floor?oy+(W.h-o.h)*sc:oy+(W.h-o.y-o.h)*sc;
+    const rw=o.d*sc,rh=o.h*sc;
+    const col=_annCol(o);
+
+    // Colored outline
+    c.save();c.strokeStyle=col;c.lineWidth=1.5;c.strokeRect(rx,ry,rw,rh);c.restore();
+
+    // H-above: offset from wall face (deduplicated by same near distance)
+    const nearKey=near;
+    if(near>0&&!drawnNear.has(nearKey)){
+      drawnNear.add(nearKey);
+      const lane=_nearLane.get(o.id)??0;
+      const hY=oy-22-lane*22;
+      fpDimLine(c,ox,hY,rx,hY,near+'mm',-1,col);
+      c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
+      c.beginPath();c.moveTo(ox,oy);c.lineTo(ox,hY);c.moveTo(rx,oy);c.lineTo(rx,hY);c.stroke();
+      c.setLineDash([]);c.restore();
+    }
+
+    // H-below: object depth span (deduplicated by same d value)
+    const dKey=o.d+'|'+near;
+    if(!drawnD.has(dKey)){
+      drawnD.add(dKey);
+      const lane=_dLane.get(o.id)??0;
+      const hY=roomBottom+22+lane*22;
+      fpDimLine(c,rx,hY,rx+rw,hY,o.d+'mm',-1,col);
+      c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
+      c.beginPath();c.moveTo(rx,roomBottom);c.lineTo(rx,hY);c.moveTo(rx+rw,roomBottom);c.lineTo(rx+rw,hY);c.stroke();
+      c.setLineDash([]);c.restore();
+    }
+
+    // V-left: from-floor distance (wall objs with y>0 only)
+    if(!floor&&o.y>0){
+      const lane=_floorLane.get(o.id)??0;
+      const vX=ox-W.d*sc-22-lane*22;
+      fpDimLine(c,vX,ry+rh,vX,roomBottom,o.y+'mm',1,col);
+      c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
+      c.beginPath();c.moveTo(ox,ry+rh);c.lineTo(vX,ry+rh);c.moveTo(ox,roomBottom);c.lineTo(vX,roomBottom);c.stroke();
+      c.setLineDash([]);c.restore();
+    }
+
+    // V-right: object height (deduplicated by same h value + position)
+    const hKey=o.h+'|'+near+'|'+floor;
+    if(!drawnH.has(hKey)){
+      drawnH.add(hKey);
+      const lane=_hLane.get(o.id)??0;
+      const vX=roomRight+22+lane*22;
+      fpDimLine(c,vX,ry,vX,ry+rh,o.h+'mm',1,col);
+    }
+
+    // Bubble
+    c.save();
+    c.fillStyle='rgba(0,0,0,.75)';c.beginPath();c.arc(rx+8,ry+8,7,0,Math.PI*2);c.fill();
+    c.fillStyle='#fff';c.font='bold 8px Inter,sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.fillText(_grpNum[o.label+'|'+o.d+'|'+o.h],rx+8,ry+8);
+    c.restore();
+  });
+
+  // ── OVERALL DIMENSION LINES ──
+  const _maxNearLanes=allAnnot.filter(o=>(o.wz||o.rd||0)>0).length;
+  const _maxDLanes=allAnnot.length;
   fpDimLine(c,ox,oy,roomRight,oy,FLOOR_DEPTH+'mm',-1,'#4a9eff');
   fpDimLine(c,roomRight,oy,roomRight,roomBottom,W.h+'mm',1,'#4a9eff');
   fpDimLine(c,ox-W.d*sc,oy,ox,oy,W.d+'mm wall',-1,fpT('#555','#999'));
 
-  // Vertical ruler
-  const rulerX=ox-W.d*sc-42;
+  // ── VERTICAL RULER ──
+  const _vLaneCount=Math.max(_sortedByFloor.length,0);
+  const rulerX=ox-W.d*sc-(_vLaneCount>0?_vLaneCount*22+44:42);
   c.save();c.strokeStyle=fpT('#252525','#cccccc');c.lineWidth=1;
   c.beginPath();c.moveTo(rulerX+10,oy);c.lineTo(rulerX+10,roomBottom);c.stroke();
   const rStep=W.h>3000?1000:500;
@@ -1071,8 +1157,8 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
   c.save();c.translate(rulerX-2,oy+W.h*sc/2);c.rotate(-Math.PI/2);c.fillText('HEIGHT (mm)',0,0);c.restore();
   c.restore();
 
-  // Horizontal ruler
-  const rulerBaseY=roomBottom+36;
+  // ── HORIZONTAL RULER ──
+  const rulerBaseY=roomBottom+22+(_maxDLanes||1)*22+20;
   c.save();c.strokeStyle=fpT('#252525','#cccccc');c.lineWidth=1;
   c.beginPath();c.moveTo(ox,rulerBaseY-10);c.lineTo(roomRight,rulerBaseY-10);c.stroke();
   const xStep=FLOOR_DEPTH>4000?1000:500;
