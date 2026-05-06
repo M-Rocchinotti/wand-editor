@@ -1047,28 +1047,19 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
     c.restore();
   });
 
-  // ── ANNOTATIONS ──
+  // ── ANNOTATIONS: only distance-from-wall (above) and depth/thickness (below) ──
   const _annPal=['#4a9eff','#ff6b4a','#4aff9e','#ff4ab8','#ffe44a','#b84aff','#4afff0','#ff9e4a','#ff4a4a','#a0ff4a'];
   const allAnnot=[...wallObjs,...floorObjs];
   const _grpKeys=[...new Set(allAnnot.map(o=>o.label+'|'+o.d+'|'+o.h))];
   const _grpNum={};_grpKeys.forEach((k,i)=>_grpNum[k]=i+1);
   const _annCol=o=>_annPal[(_grpNum[o.label+'|'+o.d+'|'+o.h]-1)%_annPal.length];
 
-  // Precompute lane ordering for staggering
-  // H-above lanes: offset from wall (wz/rd), sorted smallest first = closest to wall face = lane 0
-  // H-below lanes: depth (d), sorted biggest first = lane 0
-  // V-left lanes: from-floor (y), sorted smallest first = lane 0
-  // V-right lanes: height (h), sorted biggest first = lane 0
   const _sortedByNear=[...allAnnot].sort((a,b)=>(a.wz||a.rd||0)-(b.wz||b.rd||0));
   const _nearLane=new Map();_sortedByNear.forEach((o,i)=>_nearLane.set(o.id,i));
   const _sortedByD=[...allAnnot].sort((a,b)=>b.d-a.d);
   const _dLane=new Map();_sortedByD.forEach((o,i)=>_dLane.set(o.id,i));
-  const _sortedByFloor=[...wallObjs].filter(o=>o.y>0).sort((a,b)=>b.y-a.y);
-  const _floorLane=new Map();_sortedByFloor.forEach((o,i)=>_floorLane.set(o.id,i));
-  const _sortedByH=[...allAnnot].sort((a,b)=>b.h-a.h);
-  const _hLane=new Map();_sortedByH.forEach((o,i)=>_hLane.set(o.id,i));
 
-  const drawnNear=new Set(),drawnD=new Set(),drawnH=new Set();
+  const drawnNear=new Set(),drawnD=new Set();
 
   allAnnot.forEach(o=>{
     const floor=isFloor(o.t);
@@ -1081,7 +1072,7 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
     // Colored outline
     c.save();c.strokeStyle=col;c.lineWidth=1.5;c.strokeRect(rx,ry,rw,rh);c.restore();
 
-    // H-above: offset from wall face (deduplicated by same near distance)
+    // H-above: distance from wall face
     const nearKey=near;
     if(near>0&&!drawnNear.has(nearKey)){
       drawnNear.add(nearKey);
@@ -1093,7 +1084,7 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
       c.setLineDash([]);c.restore();
     }
 
-    // H-below: object depth span (deduplicated by same d value)
+    // H-below: object depth/thickness
     const dKey=o.d+'|'+near;
     if(!drawnD.has(dKey)){
       drawnD.add(dKey);
@@ -1105,25 +1096,6 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
       c.setLineDash([]);c.restore();
     }
 
-    // V-left: from-floor distance (wall objs with y>0 only)
-    if(!floor&&o.y>0){
-      const lane=_floorLane.get(o.id)??0;
-      const vX=ox-W.d*sc-22-lane*22;
-      fpDimLine(c,vX,ry+rh,vX,roomBottom,o.y+'mm',1,col);
-      c.save();c.strokeStyle=col+'22';c.lineWidth=.5;c.setLineDash([2,3]);
-      c.beginPath();c.moveTo(ox,ry+rh);c.lineTo(vX,ry+rh);c.moveTo(ox,roomBottom);c.lineTo(vX,roomBottom);c.stroke();
-      c.setLineDash([]);c.restore();
-    }
-
-    // V-right: object height (deduplicated by same h value + position)
-    const hKey=o.h+'|'+near+'|'+floor;
-    if(!drawnH.has(hKey)){
-      drawnH.add(hKey);
-      const lane=_hLane.get(o.id)??0;
-      const vX=roomRight+22+lane*22;
-      fpDimLine(c,vX,ry,vX,ry+rh,o.h+'mm',1,col);
-    }
-
     // Bubble
     c.save();
     c.fillStyle='rgba(0,0,0,.75)';c.beginPath();c.arc(rx+8,ry+8,7,0,Math.PI*2);c.fill();
@@ -1133,15 +1105,13 @@ function drawSideView(c,cvW,cvH,pageIdx,margin=90){
   });
 
   // ── OVERALL DIMENSION LINES ──
-  const _maxNearLanes=allAnnot.filter(o=>(o.wz||o.rd||0)>0).length;
   const _maxDLanes=allAnnot.length;
   fpDimLine(c,ox,oy,roomRight,oy,FLOOR_DEPTH+'mm',-1,'#4a9eff');
   fpDimLine(c,roomRight,oy,roomRight,roomBottom,W.h+'mm',1,'#4a9eff');
   fpDimLine(c,ox-W.d*sc,oy,ox,oy,W.d+'mm wall',-1,fpT('#555','#999'));
 
   // ── VERTICAL RULER ──
-  const _vLaneCount=Math.max(_sortedByFloor.length,0);
-  const rulerX=ox-W.d*sc-(_vLaneCount>0?_vLaneCount*22+44:42);
+  const rulerX=ox-W.d*sc-42;
   c.save();c.strokeStyle=fpT('#252525','#cccccc');c.lineWidth=1;
   c.beginPath();c.moveTo(rulerX+10,oy);c.lineTo(rulerX+10,roomBottom);c.stroke();
   const rStep=W.h>3000?1000:500;
@@ -1429,19 +1399,21 @@ async function exportPDF(){
 
       // Compute asymmetric margins so annotations fit without shrinking the wall
       const pg2=pages[pageIdx];
-      const nObjs=pg2?(mode==='wall'?pg2.objs.filter(o=>!isFloor(o.t)).length:pg2.objs.filter(o=>isFloor(o.t)).length):0;
-      const wDim=mode==='wall'?W.h:FLOOR_DEPTH;
+      const nObjs=pg2?(mode==='wall'?pg2.objs.filter(o=>!isFloor(o.t)).length:mode==='floor'?pg2.objs.filter(o=>isFloor(o.t)).length:pg2.objs.length):0;
+      const wDim=mode==='wall'?W.h:W.h; // vertical extent always W.h for side too
+      const hDim=mode==='floor'?W.len:mode==='side'?FLOOR_DEPTH:W.len;
       const topAnnotH=nObjs*20+30;
       const bottomAnnotH=nObjs*35+90+(nObjs>0?22+nObjs*17:0);
       const wallH_avail=Math.max(300,drawH-topAnnotH-bottomAnnotH);
-      const sc_target=Math.min(wallH_avail/wDim,(PW-Math.max(80,nObjs*22+60)*2)/W.len);
-      const pdfMargin=Math.max(40,Math.round(Math.min((PW-W.len*sc_target)/2,(drawH-wDim*sc_target)/2)));
+      const sc_target=Math.min(wallH_avail/wDim,(PW-Math.max(80,nObjs*22+60)*2)/hDim);
+      const pdfMargin=Math.max(40,Math.round(Math.min((PW-hDim*sc_target)/2,(drawH-wDim*sc_target)/2)));
       const naturalOy=drawH/2-wDim/2*sc_target;
       fpPanY=topAnnotH-naturalOy;
 
       oc2.save();
       if(halfH==='bottom') oc2.translate(0,PH/2);
       if(mode==='wall') drawWallElevationView(oc2,PW,drawH,pageIdx,pdfMargin);
+      else if(mode==='side') drawSideView(oc2,PW,drawH,pageIdx,pdfMargin);
       else drawFloorPlanView(oc2,PW,drawH,pageIdx,pdfMargin);
       oc2.restore();
       fpPanY=0;
@@ -1458,7 +1430,7 @@ async function exportPDF(){
         const pgName=pages[pageIdx].name;
         oc2.fillText(`WALLSTUDIO  ·  ${pgName}  ·  ${W.len}mm × ${W.h}mm`,16,PH-14);
         oc2.textAlign='center';
-        oc2.fillText(mode==='wall'?t('wallElevation'):t('floorPlanView'),PW/2,PH-14);
+        oc2.fillText(mode==='wall'?t('wallElevation'):mode==='side'?t('sideView'):t('floorPlanView'),PW/2,PH-14);
         oc2.textAlign='right';
         oc2.fillText(`Page ${pageIdx+1} of ${pages.length}  ·  ${new Date().toLocaleDateString()}`,PW-16,PH-14);
         oc2.restore();
@@ -1482,7 +1454,14 @@ async function exportPDF(){
       renderPlanPage(i,'wall',null);
       doc.addImage(oc.toDataURL('image/png'),0,0,PW,PH);
 
-      // ── PAGE 2: Floor Plan (only if page has floor objects) ──
+      // ── PAGE 2: Side View (always) ──
+      doc.addPage([PW,PH],'landscape');
+      oc2.clearRect(0,0,PW,PH);
+      oc2.fillStyle='#0a0a0a';oc2.fillRect(0,0,PW,PH);
+      renderPlanPage(i,'side',null);
+      doc.addImage(oc.toDataURL('image/png'),0,0,PW,PH);
+
+      // ── PAGE 3: Floor Plan (only if page has floor objects) ──
       if(pages[i].objs.some(o=>isFloor(o.t))){
         doc.addPage([PW,PH],'landscape');
         oc2.clearRect(0,0,PW,PH);
@@ -1527,7 +1506,7 @@ async function exportPDF(){
     if(fpVisible)drawFloorPlan();
 
     doc.save('wallstudio-plans.pdf');
-    toast('PDF saved — '+(pages.length*2+1)+' pages',3000);
+    toast('PDF saved',3000);
   }catch(err){toast('PDF error: '+err.message,4000);console.error(err);}
 }
 
