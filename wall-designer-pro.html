@@ -221,6 +221,44 @@ body.print-mode .print-overlay{display:flex}
 .ob.locked .ob-nm::after{content:' 🔒';font-size:8px}
 
 /* ── MULTISEL highlight ring on canvas ── */
+
+/* ── ROOM SETUP MODAL ── */
+.room-modal{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.room-modal-inner{background:var(--s1);border:1px solid var(--b2);border-radius:4px;padding:26px 28px;max-width:660px;width:92vw;max-height:90vh;overflow-y:auto}
+.room-modal-title{font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--mu);margin-bottom:4px;font-family:'Inter',sans-serif}
+.room-modal-sub{font-size:18px;font-weight:300;color:var(--tx);margin-bottom:20px;letter-spacing:-.01em;font-family:'Inter',sans-serif}
+.room-preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:6px}
+.room-preset-card{background:var(--s2);border:1px solid var(--b1);border-radius:3px;padding:14px 8px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;transition:border-color .12s,background .12s;user-select:none}
+.room-preset-card:hover{border-color:var(--b2);background:var(--s3)}
+.room-preset-card.sel{border-color:var(--ac);background:var(--ab)}
+.room-preset-label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);text-align:center;font-family:'Inter',sans-serif}
+.room-preset-card.sel .room-preset-label{color:var(--tx)}
+.lego-section{border-top:1px solid var(--b1);padding-top:16px;margin-top:12px}
+.lego-section-title{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--mu);margin-bottom:12px;font-family:'Inter',sans-serif}
+.lego-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.lego-label{font-size:9px;color:var(--mu);letter-spacing:.1em;text-transform:uppercase;font-family:'Inter',sans-serif;white-space:nowrap}
+.lego-inp{width:72px;background:var(--s3);border:1px solid var(--b2);color:var(--tx);font-family:'DM Mono',monospace;font-size:10px;padding:3px 6px;border-radius:2px;outline:none}
+.lego-inp:focus{border-color:var(--ac)}
+.lego-unit{font-size:9px;color:var(--fa);font-family:'Inter',sans-serif}
+.angle-btns{display:flex;gap:4px;flex-wrap:wrap}
+.angle-btn{padding:3px 9px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;color:var(--mu);font-size:9px;cursor:pointer;font-family:'DM Mono',monospace;transition:border-color .1s,color .1s;white-space:nowrap}
+.angle-btn:hover{border-color:var(--b2);color:var(--tx)}
+.angle-btn.sel{border-color:var(--ac);color:var(--tx);background:var(--ab)}
+.lego-add-btn{padding:5px 14px;background:var(--s2);border:1px solid var(--b2);border-radius:2px;color:var(--tx);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color .1s}
+.lego-add-btn:hover{border-color:var(--ac)}
+.lego-seg-list{display:flex;flex-direction:column;gap:3px;margin-bottom:10px;min-height:28px}
+.lego-seg{display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:2px}
+.lego-seg-idx{font-size:8px;color:var(--fa);font-family:'DM Mono',monospace;width:16px;flex-shrink:0}
+.lego-seg-name{flex:1;font-size:9px;color:var(--tx);font-family:'Inter',sans-serif}
+.lego-seg-info{font-size:9px;color:var(--mu);font-family:'DM Mono',monospace}
+.lego-seg-del{background:none;border:none;color:var(--fa);cursor:pointer;font-size:11px;padding:0 3px;line-height:1;transition:color .1s}
+.lego-seg-del:hover{color:#ff4444}
+.lego-cv-wrap{border:1px solid var(--b1);border-radius:2px;overflow:hidden;margin-bottom:4px;background:var(--bg)}
+.room-modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--b1)}
+.room-modal-ok{padding:7px 20px;background:var(--tx);color:var(--bg);border:none;border-radius:2px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;font-family:'Inter',sans-serif;font-weight:500}
+.room-modal-ok:hover{opacity:.82}
+.room-modal-skip{padding:7px 16px;background:none;border:1px solid var(--b2);color:var(--mu);border-radius:2px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;font-family:'Inter',sans-serif}
+.room-modal-skip:hover{border-color:var(--ac);color:var(--tx)}
 </style>
 </head>
 <body>
@@ -228,6 +266,54 @@ body.print-mode .print-overlay{display:flex}
 <input type="file" id="ti" accept="image/*" style="display:none" onchange="loadTex(this)">
 <input type="file" id="mi" accept=".obj,.gltf,.glb,.stl,.ply" style="display:none" onchange="load3D(this)">
 <div class="panel-overlay" id="overlay" onclick="closePanel()"></div>
+
+<!-- ── ROOM SETUP MODAL ── -->
+<div id="room-modal" class="room-modal" style="display:none">
+  <div class="room-modal-inner">
+    <div class="room-modal-title">Wall Studio</div>
+    <div class="room-modal-sub">Choose your room layout</div>
+
+    <div class="room-preset-grid" id="preset-grid"></div>
+
+    <div class="lego-section" id="lego-section" style="display:none">
+      <div class="lego-section-title">Custom Room Builder</div>
+
+      <div class="lego-row">
+        <span class="lego-label">Wall length</span>
+        <input type="number" class="lego-inp" id="lego-len" value="3000" min="500" max="12000" step="100">
+        <span class="lego-unit">mm</span>
+      </div>
+
+      <div id="lego-angle-wrap" style="display:none">
+        <div class="lego-row" style="margin-bottom:6px">
+          <span class="lego-label">Turn from prev wall</span>
+          <div class="angle-btns" id="angle-btns"></div>
+        </div>
+        <div class="lego-row" id="custom-angle-row" style="display:none">
+          <span class="lego-label">Exact °</span>
+          <input type="number" class="lego-inp" id="lego-custom-angle" value="90" min="-180" max="360" step="1">
+        </div>
+      </div>
+
+      <div class="lego-row" style="margin-top:4px">
+        <button class="lego-add-btn" onclick="legoAddSeg()">+ Add Wall</button>
+        <span id="lego-hint" style="font-size:8px;color:var(--fa);font-family:'Inter',sans-serif"></span>
+      </div>
+
+      <div class="lego-seg-list" id="lego-seg-list"></div>
+
+      <div class="lego-cv-wrap">
+        <canvas id="lego-cv" width="600" height="160" style="width:100%;display:block"></canvas>
+      </div>
+    </div>
+
+    <div class="room-modal-btns">
+      <button class="room-modal-skip" onclick="closeRoomModal()">Skip</button>
+      <button class="room-modal-ok" onclick="confirmRoomSetup()">Apply →</button>
+    </div>
+  </div>
+</div>
+
 <div class="app">
 <aside class="side" id="side">
   <div class="side-head" style="display:flex;align-items:flex-start;justify-content:space-between">
@@ -375,7 +461,7 @@ const FLOOR_DEPTH=2000;
 // ─── UNDO / REDO ───
 const undoStack=[], redoStack=[];
 function snapshot(){
-  const state=JSON.stringify({wall:{...W,col:{...W.col}},light:{...LT},curP,pages:pages.map(p=>({name:p.name,baseWZ:p.baseWZ||0,objs:p.objs.map(o=>({...o}))}))});
+  const state=JSON.stringify({wall:{...W,col:{...W.col}},light:{...LT},curP,pages:pages.map(p=>({name:p.name,baseWZ:p.baseWZ||0,wallLen:p.wallLen||0,wallAngle:p.wallAngle||0,objs:p.objs.map(o=>({...o}))}))});
   if(undoStack.length&&undoStack[undoStack.length-1]===state)return;
   undoStack.push(state);if(undoStack.length>60)undoStack.shift();
   redoStack.length=0;updateUndoUI();
@@ -395,9 +481,10 @@ function applySnapshot(state){
   pages.length=0;let maxId=0;
   d.pages.forEach(p=>{
     const os=p.objs.map(o=>{maxId=Math.max(maxId,o.id);return{...o,_p:1};});
-    pages.push({name:p.name,baseWZ:p.baseWZ||0,objs:os});
+    pages.push({name:p.name,baseWZ:p.baseWZ||0,wallLen:p.wallLen||0,wallAngle:p.wallAngle||0,objs:os});
   });
   nextId=maxId+1;curP=Math.min(d.curP,pages.length-1);sel=null;multiSel.clear();
+  if(pages[curP]?.wallLen){W.len=pages[curP].wallLen;syncS('wl',W.len);}
   buildTabs();buildDots();refreshList();refreshEdit();draw();updateUndoUI();
 }
 function undo(){if(undoStack.length<2)return;redoStack.push(undoStack.pop());applySnapshot(undoStack[undoStack.length-1]);}
@@ -2292,11 +2379,11 @@ function clearTex(){if(!sel)return;delete TC[sel];const o=objs().find(b=>b.id===
 function addPage(){
   const prev=pages[pages.length-1];
   const baseWZ=prev.objs.filter(o=>!isFloor(o.t)).reduce((m,o)=>Math.max(m,(o.wz||0)+o.d),0);
-  pages.push({name:`Page ${pages.length+1}`,objs:[],baseWZ});
+  pages.push({name:`Page ${pages.length+1}`,objs:[],baseWZ,wallLen:W.len,wallAngle:0});
   goTo(pages.length-1);
 }
 function renamePage(i){const n=prompt(t('rename'),pages[i].name);if(n&&n.trim()){pages[i].name=n.trim();buildTabs();buildDots();}}
-function goTo(n){if(n===curP)return;stopPlacing();sel=null;curP=n;buildTabs();buildDots();document.getElementById('sn').textContent=t('pageOf',curP+1,pages.length);document.getElementById('st').textContent=pages[curP].name;draw();refreshList();refreshEdit();}
+function goTo(n){if(n===curP)return;stopPlacing();sel=null;curP=n;if(pages[n].wallLen){W.len=pages[n].wallLen;syncS('wl',W.len);}buildTabs();buildDots();document.getElementById('sn').textContent=t('pageOf',curP+1,pages.length);document.getElementById('st').textContent=pages[curP].name;draw();refreshList();refreshEdit();}
 function go(dir){const n=Math.max(0,Math.min(pages.length-1,curP+dir));if(n!==curP)goTo(n);}
 
 function buildTabs(){
@@ -2418,9 +2505,9 @@ function syncS(id,val){const r=document.getElementById('r-'+id),n=document.getEl
 [['wl','len'],['wh','h'],['wd','d']].forEach(([id,key])=>{
   const r=document.getElementById('r-'+id),n=document.getElementById('n-'+id);
   if(!r)return;
-  r.oninput=()=>{n.value=r.value;W[key]=+r.value;draw();};
+  r.oninput=()=>{n.value=r.value;W[key]=+r.value;if(id==='wl')pages[curP].wallLen=W.len;draw();};
   r.onchange=()=>snapshot();
-  n.onchange=()=>{r.value=n.value;W[key]=+n.value;draw();snapshot();};
+  n.onchange=()=>{r.value=n.value;W[key]=+n.value;if(id==='wl')pages[curP].wallLen=W.len;draw();snapshot();};
 });
 function setWC(k,v){W.col[k]=v;document.getElementById('fc-'+k).style.background=v;draw();}
 
@@ -2436,7 +2523,7 @@ async function saveP(){
   const meshTexToFile={};
   [...usedMeshKeys].forEach((k,i)=>{if(MESH_TEX[k])meshTexToFile[k]='mesh_tex_'+i+'.png';});
   const data={v:6,wall:{...W,col:{...W.col}},light:{...LT},curP,meshKeyMap:meshKeyToFile,meshTexKeyMap:meshTexToFile,
-    pages:pages.map(p=>({name:p.name,objs:p.objs.map(o=>({id:o.id,t:o.t,x:o.x,y:o.y,w:o.w,h:o.h,d:o.d,wz:o.wz||0,color:o.color,label:o.label,texUrl:o.texUrl||null,rd:o.rd||0,meshKey:o.meshKey||null,meshFile:o.meshKey?meshKeyToFile[o.meshKey]:null}))}))};
+    pages:pages.map(p=>({name:p.name,baseWZ:p.baseWZ||0,wallLen:p.wallLen||0,wallAngle:p.wallAngle||0,objs:p.objs.map(o=>({id:o.id,t:o.t,x:o.x,y:o.y,w:o.w,h:o.h,d:o.d,wz:o.wz||0,color:o.color,label:o.label,texUrl:o.texUrl||null,rd:o.rd||0,meshKey:o.meshKey||null,meshFile:o.meshKey?meshKeyToFile[o.meshKey]:null}))}))};
   if(!hasMeshes){
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download=baseName+'.wallstudio';a.click();toast(t('saved'),2200);return;
   }
@@ -2499,9 +2586,10 @@ function applyScene(txt){
         if(o.texUrl&&o.texUrl.startsWith('data:')){const img=new Image();img.src=o.texUrl;img.onload=()=>{TC[o.id]=img;draw();};TC[o.id]=img;}
         return obj;
       });
-      pages.push({name:p.name,baseWZ:p.baseWZ||0,objs:os});
+      pages.push({name:p.name,baseWZ:p.baseWZ||0,wallLen:p.wallLen||0,wallAngle:p.wallAngle||0,objs:os});
     });
     nextId=maxId+1;curP=Math.min(data.curP??0,pages.length-1);sel=null;
+    if(pages[curP]?.wallLen){W.len=pages[curP].wallLen;syncS('wl',W.len);}
     buildTabs();buildDots();
     document.getElementById('sn').textContent=t('pageOf',curP+1,pages.length);
     document.getElementById('st').textContent=pages[curP]?.name||'';
@@ -3139,11 +3227,240 @@ function toggleTheme(){
   }
 })();
 
+// ─── ROOM SETUP MODAL ───
+const ROOM_PRESETS=[
+  {id:'single',  label:'Single Wall',
+   segs:[{len:4000,turn:0,name:'Wall'}]},
+  {id:'l-left',  label:'L-Corner Left',
+   segs:[{len:4000,turn:0,name:'Wall A'},{len:3000,turn:90,name:'Wall B'}]},
+  {id:'l-right', label:'L-Corner Right',
+   segs:[{len:4000,turn:0,name:'Wall A'},{len:3000,turn:-90,name:'Wall B'}]},
+  {id:'u-shape', label:'U-Shape',
+   segs:[{len:3000,turn:0,name:'Wall A'},{len:4000,turn:90,name:'Wall B'},{len:3000,turn:90,name:'Wall C'}]},
+  {id:'square',  label:'Square Room',
+   segs:[{len:4000,turn:0,name:'North'},{len:4000,turn:90,name:'East'},{len:4000,turn:90,name:'South'},{len:4000,turn:90,name:'West'}]},
+  {id:'custom',  label:'Custom',
+   segs:null},
+];
+const ANGLE_PRESETS=[
+  {label:'90° left', val:90},{label:'45° left', val:45},
+  {label:'Straight', val:0},{label:'45° right', val:-45},
+  {label:'90° right', val:-90},{label:'Custom', val:'custom'},
+];
+
+let _legoSegs=[];
+let _legoAngle=90;
+let _selPreset='single';
+
+function _presetSVG(id){
+  const ac=document.body.classList.contains('light')?'#000':'#fff';
+  const mu=document.body.classList.contains('light')?'#999':'#555';
+  switch(id){
+    case 'single':
+      return `<svg viewBox="0 0 72 48" fill="none"><rect x="6" y="22" width="60" height="4" fill="${ac}"/></svg>`;
+    case 'l-left':
+      // Wall A goes right, Wall B turns left (up) from right end → ┘ shape
+      return `<svg viewBox="0 0 72 48" fill="none"><rect x="6" y="36" width="60" height="4" fill="${ac}"/><rect x="62" y="8" width="4" height="32" fill="${ac}"/></svg>`;
+    case 'l-right':
+      // Wall A goes right, Wall B turns right (down) from right end → ┐ shape
+      return `<svg viewBox="0 0 72 48" fill="none"><rect x="6" y="8" width="60" height="4" fill="${ac}"/><rect x="62" y="8" width="4" height="32" fill="${ac}"/></svg>`;
+    case 'u-shape':
+      // Walls A,B,C — open U (two sides + back)
+      return `<svg viewBox="0 0 72 48" fill="none"><rect x="6" y="8" width="4" height="32" fill="${ac}"/><rect x="6" y="36" width="60" height="4" fill="${ac}"/><rect x="62" y="8" width="4" height="32" fill="${ac}"/></svg>`;
+    case 'square':
+      return `<svg viewBox="0 0 72 48" fill="none"><rect x="6" y="8" width="60" height="4" fill="${ac}"/><rect x="62" y="8" width="4" height="32" fill="${ac}"/><rect x="6" y="36" width="60" height="4" fill="${ac}"/><rect x="6" y="8" width="4" height="32" fill="${ac}"/></svg>`;
+    case 'custom':
+      return `<svg viewBox="0 0 72 48" fill="none"><text x="36" y="30" fill="${mu}" font-size="22" text-anchor="middle" font-family="Inter,sans-serif" font-weight="300">+</text></svg>`;
+    default: return '';
+  }
+}
+
+function _buildPresetGrid(){
+  const grid=document.getElementById('preset-grid');
+  grid.innerHTML='';
+  ROOM_PRESETS.forEach(p=>{
+    const card=document.createElement('div');
+    card.className='room-preset-card'+(p.id===_selPreset?' sel':'');
+    card.innerHTML=`<div style="width:72px;height:48px">${_presetSVG(p.id)}</div><div class="room-preset-label">${p.label}</div>`;
+    card.onclick=()=>{
+      _selPreset=p.id;
+      document.querySelectorAll('.room-preset-card').forEach(c=>c.classList.remove('sel'));
+      card.classList.add('sel');
+      const isCustom=p.id==='custom';
+      document.getElementById('lego-section').style.display=isCustom?'block':'none';
+      if(isCustom){_renderLegoList();_drawLegoCanvas();}
+    };
+    grid.appendChild(card);
+  });
+}
+
+function _buildAngleBtns(){
+  const wrap=document.getElementById('angle-btns');
+  wrap.innerHTML='';
+  ANGLE_PRESETS.forEach(a=>{
+    const b=document.createElement('button');
+    b.className='angle-btn'+((_legoAngle===a.val||(_legoAngle==='custom'&&a.val==='custom'))?' sel':'');
+    b.textContent=a.label;
+    b.onclick=()=>{
+      _legoAngle=a.val;
+      document.querySelectorAll('.angle-btn').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+      document.getElementById('custom-angle-row').style.display=a.val==='custom'?'flex':'none';
+    };
+    wrap.appendChild(b);
+  });
+}
+
+function showRoomModal(){
+  _legoSegs=[];_legoAngle=90;_selPreset='single';
+  _buildPresetGrid();_buildAngleBtns();
+  document.getElementById('lego-section').style.display='none';
+  document.getElementById('lego-hint').textContent='';
+  _renderLegoList();_drawLegoCanvas();
+  document.getElementById('room-modal').style.display='flex';
+}
+function closeRoomModal(){document.getElementById('room-modal').style.display='none';}
+
+function legoAddSeg(){
+  const len=Math.max(500,parseInt(document.getElementById('lego-len').value)||3000);
+  const isFirst=_legoSegs.length===0;
+  const turn=isFirst?0:(
+    _legoAngle==='custom'?(parseInt(document.getElementById('lego-custom-angle').value)||0):_legoAngle
+  );
+  const name='Wall '+(_legoSegs.length+1);
+  _legoSegs.push({len,turn,name});
+  document.getElementById('lego-angle-wrap').style.display='block';
+  _renderLegoList();_drawLegoCanvas();
+  document.getElementById('lego-hint').textContent=`${_legoSegs.length} wall${_legoSegs.length>1?'s':''} added`;
+}
+
+function legoRemoveSeg(i){
+  _legoSegs.splice(i,1);
+  _legoSegs.forEach((s,j)=>{s.name='Wall '+(j+1);});
+  if(_legoSegs.length===0) document.getElementById('lego-angle-wrap').style.display='none';
+  _renderLegoList();_drawLegoCanvas();
+  document.getElementById('lego-hint').textContent=_legoSegs.length?`${_legoSegs.length} wall${_legoSegs.length>1?'s':''}`:'' ;
+}
+
+function _renderLegoList(){
+  const list=document.getElementById('lego-seg-list');
+  list.innerHTML='';
+  if(!_legoSegs.length){
+    list.innerHTML='<div style="font-size:9px;color:var(--fa);padding:5px 0;font-family:Inter,sans-serif">Click "+ Add Wall" to start building.</div>';
+    return;
+  }
+  _legoSegs.forEach((s,i)=>{
+    const turnStr=i===0?'start':(s.turn===0?'straight':s.turn>0?`${s.turn}° left`:`${Math.abs(s.turn)}° right`);
+    const row=document.createElement('div');
+    row.className='lego-seg';
+    row.innerHTML=`<span class="lego-seg-idx">${i+1}</span><span class="lego-seg-name">${s.name}</span><span class="lego-seg-info">${s.len}mm · ${turnStr}</span><button class="lego-seg-del" onclick="legoRemoveSeg(${i})">✕</button>`;
+    list.appendChild(row);
+  });
+}
+
+function _legoPoints(segs){
+  const pts=[{x:0,y:0}];
+  let dir=0;
+  segs.forEach((s,i)=>{
+    if(i>0) dir+=s.turn;
+    const rad=dir*Math.PI/180;
+    const last=pts[pts.length-1];
+    pts.push({x:last.x+Math.cos(rad)*s.len,y:last.y-Math.sin(rad)*s.len});
+  });
+  return pts;
+}
+
+function _drawLegoCanvas(){
+  const cv=document.getElementById('lego-cv');if(!cv)return;
+  const ctx=cv.getContext('2d');
+  const CW=cv.width,CH=cv.height;
+  ctx.clearRect(0,0,CW,CH);
+  const light=document.body.classList.contains('light');
+  ctx.fillStyle=light?'#f4f4f4':'#080808';
+  ctx.fillRect(0,0,CW,CH);
+
+  const segs=_selPreset!=='custom'?(ROOM_PRESETS.find(p=>p.id===_selPreset)?.segs||[]):_legoSegs;
+  const pts=_legoPoints(segs);
+  if(pts.length<2){
+    ctx.fillStyle=light?'#aaa':'#444';
+    ctx.font='11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('Room preview',CW/2,CH/2);
+    return;
+  }
+
+  const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const pw=maxX-minX||segs[0].len,ph=maxY-minY||100;
+  const pad=32;
+  const sc=Math.min((CW-pad*2)/pw,(CH-pad*2)/ph);
+  const ox=CW/2-(minX+pw/2)*sc;
+  const oy=CH/2-(minY+ph/2)*sc;
+
+  // walls
+  ctx.save();
+  ctx.strokeStyle=light?'#222':'#ddd';
+  ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();
+  pts.forEach((p,i)=>{const sx=ox+p.x*sc,sy=oy+p.y*sc;i===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);});
+  ctx.stroke();
+
+  // labels
+  ctx.fillStyle=light?'#777':'#777';
+  ctx.font='9px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  segs.forEach((s,i)=>{
+    const p0=pts[i],p1=pts[i+1];if(!p1)return;
+    const mx=(p0.x+p1.x)/2,my=(p0.y+p1.y)/2;
+    const dx=p1.x-p0.x,dy=p1.y-p0.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=-dy/len*14,ny=dx/len*14;
+    ctx.fillText(s.name+' '+s.len+'mm',ox+mx*sc+nx,oy+my*sc+ny);
+  });
+
+  // start dot (blue) and end dot (if open — red)
+  const sp=pts[0],ep=pts[pts.length-1];
+  ctx.fillStyle='#4a9eff';
+  ctx.beginPath();ctx.arc(ox+sp.x*sc,oy+sp.y*sc,4,0,Math.PI*2);ctx.fill();
+  const closed=Math.abs(ep.x-sp.x)<10&&Math.abs(ep.y-sp.y)<10;
+  if(!closed&&segs.length>1){
+    ctx.fillStyle='#ff6655';
+    ctx.beginPath();ctx.arc(ox+ep.x*sc,oy+ep.y*sc,4,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
+function confirmRoomSetup(){
+  let segs;
+  if(_selPreset==='custom'){
+    segs=_legoSegs.length?_legoSegs:[{len:4000,turn:0,name:'Wall'}];
+  } else {
+    segs=ROOM_PRESETS.find(p=>p.id===_selPreset)?.segs||[{len:4000,turn:0,name:'Wall'}];
+  }
+  _applyRoomSetup(segs);
+  closeRoomModal();
+}
+
+function _absAngle(segs,idx){
+  let a=0;for(let i=1;i<=idx;i++)a+=segs[i].turn||0;return a;
+}
+
+function _applyRoomSetup(segs){
+  pages.length=0;
+  segs.forEach((s,i)=>{
+    pages.push({name:s.name,baseWZ:0,wallLen:s.len,wallAngle:_absAngle(segs,i),objs:[]});
+  });
+  curP=0;
+  W.len=pages[0].wallLen;
+  syncS('wl',W.len);
+  buildTabs();buildDots();
+  draw();snapshot();
+}
+
 // ─── INIT ───
 buildLangBar();applyLang();buildMaterialGrid();
 snapshot(); // initial state for undo
+const _hashLoaded=location.hash.length>1;
 loadFromHash();
 draw();
+if(!_hashLoaded)showRoomModal();
 
 </script>
 </body>
