@@ -1677,12 +1677,63 @@ const cv=document.getElementById('cv');
 const ctx=cv.getContext('2d');
 let SC=1,OX=0,OY=0;
 
-function sceneCX(){return W.len/2;}
+// ─── MULTI-WALL TRANSFORMS ───
+let _wallT=null,_segT=[];
+function buildSegTransforms(){
+  _segT=[];let px=0,pz=0;
+  for(let i=0;i<pages.length;i++){
+    const ang=(pages[i].wallAngle||0)*Math.PI/180;
+    const dx=Math.cos(ang),dz=Math.sin(ang);
+    const len=pages[i].wallLen||W.len;
+    _segT.push({px,pz,dx,dz,len});
+    px+=dx*len;pz+=dz*len;
+  }
+}
+function setWallT(i){_wallT=_segT[i]||null;}
+function clearWallT(){_wallT=null;}
+function roomBBox(){
+  if(!_segT.length)return{minX:0,maxX:W.len,minZ:0,maxZ:0};
+  const xs=_segT.flatMap(t=>[t.px,t.px+t.dx*t.len]);
+  const zs=_segT.flatMap(t=>[t.pz,t.pz+t.dz*t.len]);
+  return{minX:Math.min(...xs),maxX:Math.max(...xs),minZ:Math.min(...zs),maxZ:Math.max(...zs)};
+}
+function _objDepth(o,pi){
+  const t=_segT[pi];
+  if(!t)return(isFloor(o.t)?(o.rd||0):(o.wz||0))+(o.d||0)/2;
+  const wx=o.x+(o.w||0)/2;
+  const wz=isFloor(o.t)?((o.rd||0)+(o.d||0)/2):((o.wz||0)+(o.d||0)/2);
+  const worldX=t.px+wx*t.dx-wz*t.dz,worldZ=t.pz+wx*t.dz+wz*t.dx;
+  const azR=CAM.az*Math.PI/180;
+  return-(worldX-sceneCX())*Math.sin(azR)+(worldZ-sceneCZ())*Math.cos(azR);
+}
+function findHitObj(px,py){
+  const order=[curP,...Array.from({length:pages.length},(_,i)=>i).filter(i=>i!==curP)];
+  for(const pi of order){
+    setWallT(pi);
+    const list=[...pages[pi].objs].filter(o=>o._p>.5&&!o.locked);
+    list.sort((a,b)=>_objDepth(b,pi)-_objDepth(a,pi));
+    for(const o of list){if(hitO(o,px,py)){clearWallT();return{o,pi};}}
+    clearWallT();
+  }
+  return null;
+}
+
+function sceneCX(){
+  if(!_segT.length)return W.len/2;
+  const bb=roomBBox();return(bb.minX+bb.maxX)/2;
+}
 function sceneCY(){return W.h/3;}
-function sceneCZ(){return FLOOR_DEPTH/4;}
+function sceneCZ(){
+  if(!_segT.length)return FLOOR_DEPTH/4;
+  const bb=roomBBox();
+  const roomD=bb.maxZ-bb.minZ;
+  return roomD>50?(bb.minZ+bb.maxZ)/2+FLOOR_DEPTH/4:FLOOR_DEPTH/4;
+}
 
 function iso(wx,wy,wz){
-  const cx=wx-sceneCX(),cy=wy-sceneCY(),cz=wz-sceneCZ();
+  let x=wx,z=wz;
+  if(_wallT){x=_wallT.px+wx*_wallT.dx-wz*_wallT.dz;z=_wallT.pz+wx*_wallT.dz+wz*_wallT.dx;}
+  const cx=x-sceneCX(),cy=wy-sceneCY(),cz=z-sceneCZ();
   const azR=CAM.az*Math.PI/180,elR=CAM.el*Math.PI/180;
   const cosA=Math.cos(azR),sinA=Math.sin(azR),cosE=Math.cos(elR),sinE=Math.sin(elR);
   const rz=-cx*sinA+cz*cosA;
@@ -1694,16 +1745,24 @@ function wp(x,y){return iso(x,y,0);}
 function layout(){
   const vp=document.getElementById('vp');
   const VW=vp.clientWidth-16,VH=vp.clientHeight-20;
-  const maxZ=Math.max(W.d,FLOOR_DEPTH);
-  const totalW=(W.len+maxZ)*COS30,totalH=W.h+(W.len+maxZ)*SIN30;
+  let roomW=W.len,roomD=FLOOR_DEPTH;
+  if(_segT.length>1){
+    const bb=roomBBox();
+    roomW=Math.max(bb.maxX-bb.minX,W.len)+FLOOR_DEPTH;
+    roomD=Math.max(bb.maxZ-bb.minZ,0)+FLOOR_DEPTH;
+  }
+  const maxZ=Math.max(W.d,roomD);
+  const totalW=(roomW+maxZ)*COS30,totalH=W.h+(roomW+maxZ)*SIN30;
   SC=Math.min((VW-100)/totalW,(VH-44)/totalH,2.4);
   cv.width=Math.ceil(VW);cv.height=Math.ceil(VH);
-  OX=VW/2;OY=44+W.h*SC+W.len*SIN30*SC+(VH-44-totalH*SC)/2;
+  OX=VW/2;OY=44+W.h*SC+roomW*SIN30*SC+(VH-44-totalH*SC)/2;
 }
 
 function faceVisible(nx,ny,nz){
+  let wnx=nx,wnz=nz;
+  if(_wallT){wnx=nx*_wallT.dx-nz*_wallT.dz;wnz=nx*_wallT.dz+nz*_wallT.dx;}
   const azR=CAM.az*Math.PI/180,elR=CAM.el*Math.PI/180;
-  const rz=-nx*Math.sin(azR)+nz*Math.cos(azR);
+  const rz=-wnx*Math.sin(azR)+wnz*Math.cos(azR);
   return ny*Math.sin(elR)+rz*Math.cos(elR)>0;
 }
 
@@ -1721,17 +1780,29 @@ function unproject(px,py){
 }
 function screenToWall(px,py,targetWZ=0){
   const{fx,fy,cosE,sinE,cosA,sinA}=unproject(px,py);
-  const cz=targetWZ-sceneCZ();
-  const cx=Math.abs(cosA)>0.01?(fx-cz*sinA)/cosA:(fx-cz*sinA)/(Math.sign(cosA||1)*0.01);
-  const cxC=Math.max(-W.len,Math.min(W.len*2,cx));
-  const cy=(fy-cxC*sinA*sinE-cz*cosA*sinE)/cosE;
-  return{x:cxC+sceneCX(),y:cy+sceneCY()};
+  const t=_segT[curP];
+  if(!t){
+    const cz=targetWZ-sceneCZ();
+    const cx=Math.abs(cosA)>0.01?(fx-cz*sinA)/cosA:(fx-cz*sinA)/(Math.sign(cosA||1)*0.01);
+    const cxC=Math.max(-W.len,Math.min(W.len*2,cx));
+    const cy=(fy-cxC*sinA*sinE-cz*cosA*sinE)/cosE;
+    return{x:cxC+sceneCX(),y:cy+sceneCY()};
+  }
+  const bx=t.px-targetWZ*t.dz-sceneCX(),bz=t.pz+targetWZ*t.dx-sceneCZ();
+  const fxCoeff=t.dx*cosA+t.dz*sinA;
+  let wx=Math.abs(fxCoeff)>0.001?(fx-bx*cosA-bz*sinA)/fxCoeff:0;
+  wx=Math.max(-t.len,Math.min(t.len*2,wx));
+  const rz=-(bx+wx*t.dx)*sinA+(bz+wx*t.dz)*cosA;
+  return{x:wx,y:(fy+rz*sinE)/(cosE||0.01)+sceneCY()};
 }
 function screenToFloor(px,py){
   const{fx,fy,cosE,sinE,cosA,sinA}=unproject(px,py);
-  const sCY=sceneCY(),sCZ=sceneCZ();
-  const rz=sinE>0.01?((-sCY)*cosE-fy)/sinE:0;
-  return{wx:fx*cosA-rz*sinA+sceneCX(),wz:fx*sinA+rz*cosA+sCZ};
+  const rz=sinE>0.01?((-sceneCY())*cosE-fy)/sinE:0;
+  const worldX=fx*cosA-rz*sinA+sceneCX(),worldZ=fx*sinA+rz*cosA+sceneCZ();
+  const t=_segT[curP];
+  if(!t)return{wx:worldX,wz:worldZ};
+  const relX=worldX-t.px,relZ=worldZ-t.pz;
+  return{wx:relX*t.dx+relZ*t.dz,wz:-relX*t.dz+relZ*t.dx};
 }
 
 // ─── COLOR UTILS ───
@@ -1821,44 +1892,41 @@ function floorBox(x,rd,w,h,d,fc,tc,sc,p=1,ghost=false,img=null){
 // ─── DRAW ───
 let DQ=[];
 function draw(){
+  buildSegTransforms();
   layout();
   ctx.clearRect(0,0,cv.width,cv.height);
   DQ=[];
-  drawFloor();
-  drawWall();
+
+  // Floors (all walls)
+  for(let i=0;i<_segT.length;i++){setWallT(i);drawFloor();clearWallT();}
+
+  // Light glow
   if(LT.on){
     const[lx,ly]=wp(LT.x,LT.y);
     const g=ctx.createRadialGradient(lx,ly,0,lx,ly,cv.width*.85);
     g.addColorStop(0,`rgba(255,245,190,${LT.i*.12})`);g.addColorStop(1,'rgba(0,0,0,0)');
     ctx.save();ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
   }
-  // Ghost: previous page objects drawn at low opacity
-  if(curP>0){
-    const prevObjs=pages[curP-1].objs.filter(o=>o._p>0.01).slice().sort((a,b)=>{
-      const ma=isFloor(a.t)?(a.rd||0)+a.d:(a.wz||0)+a.d;
-      const mb=isFloor(b.t)?(b.rd||0)+b.d:(b.wz||0)+b.d;
-      return ma-mb;
-    });
-    ctx.save();ctx.globalAlpha=0.22;
-    for(const o of prevObjs){
-      if(o.meshKey)drawMeshObj(o);
-      else if(isFloor(o.t))drawFloorObj(o);
-      else drawWallObj(o);
-    }
-    ctx.restore();
+
+  // All walls
+  for(let i=0;i<_segT.length;i++){setWallT(i);drawWall();clearWallT();}
+
+  // All objects from all pages, sorted by world depth (painter's algorithm)
+  const allObjs=[];
+  for(let pi=0;pi<pages.length;pi++){
+    for(const o of pages[pi].objs){if(o._p>0.01)allObjs.push({o,pi});}
   }
-  const all=objs().filter(o=>o._p>0.01).slice().sort((a,b)=>{
-    const ma=isFloor(a.t)?(a.rd||0)+a.d:(a.wz||0)+a.d;
-    const mb=isFloor(b.t)?(b.rd||0)+b.d:(b.wz||0)+b.d;
-    if(ma!==mb)return ma-mb;
-    return iso(a.x+a.w/2,isFloor(a.t)?a.h/2:a.y+a.h/2,ma)[1]-iso(b.x+b.w/2,isFloor(b.t)?b.h/2:b.y+b.h/2,mb)[1];
-  });
-  for(const o of all){
+  allObjs.sort((a,b)=>_objDepth(a.o,a.pi)-_objDepth(b.o,b.pi));
+  for(const{o,pi} of allObjs){
+    setWallT(pi);
     if(o.meshKey)drawMeshObj(o);
     else if(isFloor(o.t))drawFloorObj(o);
     else drawWallObj(o);
+    clearWallT();
   }
-  // Multi-select highlight
+
+  // Multi-select + lock indicators (active wall only)
+  setWallT(curP);
   if(multiSel.size>0){
     ctx.save();ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1.5;ctx.setLineDash([5,3]);
     objs().filter(o=>multiSel.has(o.id)).forEach(o=>{
@@ -1870,21 +1938,25 @@ function draw(){
     });
     ctx.setLineDash([]);ctx.restore();
   }
-  // Lock indicator
   objs().filter(o=>o.locked).forEach(o=>{
     const c=isFloor(o.t)?iso(o.x+o.w/2,o.h/2,(o.rd||0)+o.d/2):iso(o.x+o.w/2,o.y+o.h/2,(o.wz||0)+o.d/2);
     ctx.save();ctx.font='12px serif';ctx.globalAlpha=.55;ctx.fillText('🔒',c[0]-6,c[1]+4);ctx.restore();
   });
+  clearWallT();
+
   drawLtIcon();
+  setWallT(curP);
   drawGhost();
   drawRulers();
   if(sel)drawSelDims();
   flushDims();
+  clearWallT();
   if(fpVisible){syncFpMode();drawFloorPlan();}
 }
 
 function drawFloor(){
-  const P0=iso(0,0,0),P1=iso(W.len,0,0),P2=iso(W.len,0,FLOOR_DEPTH),P3=iso(0,0,FLOOR_DEPTH);
+  const wlen=_wallT?.len??W.len;
+  const P0=iso(0,0,0),P1=iso(wlen,0,0),P2=iso(wlen,0,FLOOR_DEPTH),P3=iso(0,0,FLOOR_DEPTH);
   if(!faceVisible(0,1,0))return;
   ctx.save();
   const g=ctx.createLinearGradient(P0[0],P0[1],P3[0],P3[1]);
@@ -1892,20 +1964,21 @@ function drawFloor(){
   ctx.beginPath();ctx.moveTo(...P0);ctx.lineTo(...P1);ctx.lineTo(...P2);ctx.lineTo(...P3);ctx.closePath();
   ctx.fillStyle=g;ctx.fill();
   ctx.lineWidth=.5;
-  for(let i=1;i<12;i++){const t=i/12,z=FLOOR_DEPTH*t;const[lx,ly]=iso(0,0,z);const[rx,ry]=iso(W.len,0,z);ctx.strokeStyle=dk(W.col.floor,18);ctx.globalAlpha=.2*(1-t*.4);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(rx,ry);ctx.stroke();}
+  for(let i=1;i<12;i++){const t=i/12,z=FLOOR_DEPTH*t;const[lx,ly]=iso(0,0,z);const[rx,ry]=iso(wlen,0,z);ctx.strokeStyle=dk(W.col.floor,18);ctx.globalAlpha=.2*(1-t*.4);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(rx,ry);ctx.stroke();}
   ctx.globalAlpha=.08;
-  for(let i=0;i<=8;i++){const x=W.len*i/8;const[ax,ay]=iso(x,0,0);const[bx,by]=iso(x,0,FLOOR_DEPTH);ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();}
+  for(let i=0;i<=8;i++){const x=wlen*i/8;const[ax,ay]=iso(x,0,0);const[bx,by]=iso(x,0,FLOOR_DEPTH);ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();}
   ctx.globalAlpha=1;ctx.strokeStyle=dk(W.col.floor,30);ctx.lineWidth=1.4;
   ctx.beginPath();ctx.moveTo(...P0);ctx.lineTo(...P1);ctx.stroke();
   ctx.restore();
 }
 
 function drawWall(){
+  const wlen=_wallT?.len??W.len;
   const fc=W.col.wall,sc=dk(W.col.side,20),tc=lt(W.col.side,12);
-  const A=iso(0,0,0),B=iso(W.len,0,0),C=iso(W.len,W.h,0),D=iso(0,W.h,0);
-  const E=iso(0,0,-W.d),F=iso(W.len,0,-W.d),G=iso(W.len,W.h,-W.d),H=iso(0,W.h,-W.d);
+  const A=iso(0,0,0),B=iso(wlen,0,0),C=iso(wlen,W.h,0),D=iso(0,W.h,0);
+  const E=iso(0,0,-W.d),F=iso(wlen,0,-W.d),G=iso(wlen,W.h,-W.d),H=iso(0,W.h,-W.d);
   ctx.save();
-  if(faceVisible(0,0,1)){ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.lineTo(...C);ctx.lineTo(...D);ctx.closePath();ctx.shadowBlur=4*SC;ctx.shadowColor='rgba(0,0,0,.15)';ctx.shadowOffsetX=-2*SC;ctx.shadowOffsetY=2*SC;ctx.fillStyle=fc;ctx.fill();ctx.shadowBlur=ctx.shadowOffsetX=ctx.shadowOffsetY=0;ctx.strokeStyle=dk(fc,10);ctx.lineWidth=.5;ctx.stroke();const BA2=iso(0,30,0),BB2=iso(W.len,30,0);ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.lineTo(...BB2);ctx.lineTo(...BA2);ctx.closePath();ctx.fillStyle=dk(fc,18);ctx.fill();}
+  if(faceVisible(0,0,1)){ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.lineTo(...C);ctx.lineTo(...D);ctx.closePath();ctx.shadowBlur=4*SC;ctx.shadowColor='rgba(0,0,0,.15)';ctx.shadowOffsetX=-2*SC;ctx.shadowOffsetY=2*SC;ctx.fillStyle=fc;ctx.fill();ctx.shadowBlur=ctx.shadowOffsetX=ctx.shadowOffsetY=0;ctx.strokeStyle=dk(fc,10);ctx.lineWidth=.5;ctx.stroke();const BA2=iso(0,30,0),BB2=iso(wlen,30,0);ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.lineTo(...BB2);ctx.lineTo(...BA2);ctx.closePath();ctx.fillStyle=dk(fc,18);ctx.fill();}
   if(faceVisible(0,0,-1)){ctx.beginPath();ctx.moveTo(...E);ctx.lineTo(...F);ctx.lineTo(...G);ctx.lineTo(...H);ctx.closePath();ctx.fillStyle=dk(fc,25);ctx.fill();ctx.strokeStyle=dk(fc,10);ctx.lineWidth=.5;ctx.stroke();}
   if(faceVisible(1,0,0)){ctx.beginPath();ctx.moveTo(...B);ctx.lineTo(...F);ctx.lineTo(...G);ctx.lineTo(...C);ctx.closePath();ctx.fillStyle=sc;ctx.fill();}
   if(faceVisible(-1,0,0)){ctx.beginPath();ctx.moveTo(...E);ctx.lineTo(...A);ctx.lineTo(...D);ctx.lineTo(...H);ctx.closePath();ctx.fillStyle=dk(sc,8);ctx.fill();}
@@ -2283,23 +2356,24 @@ cv.addEventListener('pointerdown',e=>{
     objs().push(o);sel=null;ghostPx=null;ghostPy=null;
     draw();refreshList();refreshEdit();updateSelActions();snapshot();return;
   }
-  const list=[...objs()].filter(o=>o._p>.5&&!o.locked).reverse();
-  for(const o of list){
-    if(hitO(o,px,py)){
-      e.preventDefault();cv.setPointerCapture(e.pointerId);
-      if(e.shiftKey){toggleMultiSel(o.id);return;}
-      if(multiSel.size>0&&multiSel.has(o.id)){
-        // drag all multisel
-        dragObj=o;cv.style.cursor='grabbing';
-        if(isFloor(o.t)){const{wx,wz}=screenToFloor(px,py);dragOX=wx-o.x;dragOY=wz-(o.rd||0);}
-        else{const{x,y}=screenToWall(px,py,o.wz||0);dragOX=x-o.x;dragOY=y-o.y;}
-        draw();return;
-      }
-      clearMultiSel();sel=o.id;dragObj=o;cv.style.cursor='grabbing';
+  const hit=findHitObj(px,py);
+  if(hit){
+    const{o,pi}=hit;
+    if(pi!==curP){clearMultiSel();goTo(pi);}
+    e.preventDefault();cv.setPointerCapture(e.pointerId);
+    if(e.shiftKey){toggleMultiSel(o.id);return;}
+    if(multiSel.size>0&&multiSel.has(o.id)){
+      dragObj=o;cv.style.cursor='grabbing';
+      setWallT(pi);
       if(isFloor(o.t)){const{wx,wz}=screenToFloor(px,py);dragOX=wx-o.x;dragOY=wz-(o.rd||0);}
       else{const{x,y}=screenToWall(px,py,o.wz||0);dragOX=x-o.x;dragOY=y-o.y;}
-      draw();refreshList();refreshEdit();return;
+      clearWallT();draw();return;
     }
+    clearMultiSel();sel=o.id;dragObj=o;cv.style.cursor='grabbing';
+    setWallT(pi);
+    if(isFloor(o.t)){const{wx,wz}=screenToFloor(px,py);dragOX=wx-o.x;dragOY=wz-(o.rd||0);}
+    else{const{x,y}=screenToWall(px,py,o.wz||0);dragOX=x-o.x;dragOY=y-o.y;}
+    clearWallT();draw();refreshList();refreshEdit();return;
   }
   clearMultiSel();sel=null;dragObj=null;
   // start rubber band
@@ -2346,7 +2420,7 @@ cv.addEventListener('pointermove',e=>{
     }
     draw();refreshList();return;
   }
-  cv.style.cursor=(LT.on&&hitLt(px,py))?'move':objs().filter(o=>o._p>.5&&!o.locked).some(o=>hitO(o,px,py))?'grab':'default';
+  cv.style.cursor=(LT.on&&hitLt(px,py))?'move':!!findHitObj(px,py)?'grab':'default';
 });
 cv.addEventListener('pointerup',e=>{
   if(rbStart){const{px,py}=cvPt(e);endRubberBand(px,py);}
@@ -2388,8 +2462,8 @@ function go(dir){const n=Math.max(0,Math.min(pages.length-1,curP+dir));if(n!==cu
 
 function buildTabs(){
   const bar=document.getElementById('tb');bar.innerHTML='';
-  pages.forEach((p,i)=>{const t2=document.createElement('div');t2.className='tab'+(i===curP?' on':'');t2.textContent=`${i+1}. ${p.name}`;t2.onclick=()=>goTo(i);t2.ondblclick=()=>renamePage(i);bar.appendChild(t2);});
-  const add=document.createElement('button');add.className='tab-add';add.innerHTML=t('addPage');add.onclick=addPage;bar.appendChild(add);
+  pages.forEach((p,i)=>{const t2=document.createElement('div');t2.className='tab'+(i===curP?' on':'');t2.textContent=`${i+1}. ${p.name}`;t2.onclick=()=>goTo(i);t2.ondblclick=()=>renamePage(i);t2.title='Click to edit this wall · Dbl-click to rename';bar.appendChild(t2);});
+  const add=document.createElement('button');add.className='tab-add';add.title='Add another wall';add.innerHTML='+ Wall';add.onclick=addPage;bar.appendChild(add);
   const r=document.createElement('div');r.className='tab-r';
   r.innerHTML=`<button class="io load" onclick="document.getElementById('fi').click()">${t('open')}</button><button class="io save" onclick="saveP()">${t('save')}</button><button class="narr"${curP===0?' disabled':''} onclick="go(-1)">◂</button><button class="narr"${curP===pages.length-1?' disabled':''} onclick="go(1)">▸</button>`;
   bar.appendChild(r);
