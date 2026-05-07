@@ -1706,6 +1706,25 @@ function _objDepth(o,pi){
   const azR=CAM.az*Math.PI/180;
   return-(worldX-sceneCX())*Math.sin(azR)+(worldZ-sceneCZ())*Math.cos(azR);
 }
+function findHitWall(px,py){
+  if(_segT.length<=1)return curP;
+  const azR=CAM.az*Math.PI/180,sinA=Math.sin(azR),cosA=Math.cos(azR);
+  const prev=_wallT;
+  let bestDepth=Infinity,bestI=curP;
+  for(let i=0;i<_segT.length;i++){
+    const t=_segT[i];
+    _wallT=t;
+    const{x:wx,y:wy}=screenToWall(px,py,0);
+    _wallT=prev;
+    const wlen=pages[i]?(pages[i].wallLen||W.len):W.len;
+    if(wx>=-100&&wx<=wlen+100&&wy>=-100&&wy<=W.h+100){
+      const worldX=t.px+wx*t.dx,worldZ=t.pz+wx*t.dz;
+      const depth=-(worldX-sceneCX())*sinA+(worldZ-sceneCZ())*cosA;
+      if(depth<bestDepth){bestDepth=depth;bestI=i;}
+    }
+  }
+  return bestI;
+}
 function findHitObj(px,py){
   const order=[curP,...Array.from({length:pages.length},(_,i)=>i).filter(i=>i!==curP)];
   for(const pi of order){
@@ -1780,7 +1799,7 @@ function unproject(px,py){
 }
 function screenToWall(px,py,targetWZ=0){
   const{fx,fy,cosE,sinE,cosA,sinA}=unproject(px,py);
-  const t=_segT[curP];
+  const t=_wallT||_segT[curP];
   if(!t){
     const cz=targetWZ-sceneCZ();
     const cx=Math.abs(cosA)>0.01?(fx-cz*sinA)/cosA:(fx-cz*sinA)/(Math.sign(cosA||1)*0.01);
@@ -1799,7 +1818,7 @@ function screenToFloor(px,py){
   const{fx,fy,cosE,sinE,cosA,sinA}=unproject(px,py);
   const rz=sinE>0.01?((-sceneCY())*cosE-fy)/sinE:0;
   const worldX=fx*cosA-rz*sinA+sceneCX(),worldZ=fx*sinA+rz*cosA+sceneCZ();
-  const t=_segT[curP];
+  const t=_wallT||_segT[curP];
   if(!t)return{wx:worldX,wz:worldZ};
   const relX=worldX-t.px,relZ=worldZ-t.pz;
   return{wx:relX*t.dx+relZ*t.dz,wz:-relX*t.dz+relZ*t.dx};
@@ -2079,9 +2098,12 @@ function drawGhost(){
       dimLineV(hbx-16*SC,hby,hbx-16*SC,hty,'rgba(200,112,58,.9)',def.h,null);
     }
   } else {
-    const baseWZ=pages[curP].baseWZ||0;
+    const gi=findHitWall(ghostPx,ghostPy);
+    setWallT(gi);
+    const wlen=pages[gi]?(pages[gi].wallLen||W.len):W.len;
+    const baseWZ=(pages[gi]||pages[curP]).baseWZ||0;
     const{x:rx,y:ry}=screenToWall(ghostPx,ghostPy,baseWZ);
-    let wx=Math.max(0,Math.min(W.len-def.w,rx-def.w/2));
+    let wx=Math.max(0,Math.min(wlen-def.w,rx-def.w/2));
     let wy=Math.max(0,Math.min(W.h-def.h,ry-def.h/2));
     if(ghostSnap){const snap=snapWall(wx,wy,{id:-1,w:def.w,h:def.h,d:def.d,t:def.t,wz:baseWZ,_p:1});wx=snap.x;wy=snap.y;}
     const testW={t:def.t,x:wx,y:wy,w:def.w,h:def.h,d:def.d,wz:baseWZ,id:-1,_p:1};
@@ -2092,6 +2114,7 @@ function drawGhost(){
     dimLineH(tlx,tly-12*SC,trx,try_-12*SC,'rgba(200,112,58,.9)',def.w,null);
     const[blx,bly]=iso(wx,wy,0.5),[btlx,btly]=iso(wx,wy+def.h,0.5);
     dimLineV(blx-16*SC,bly,btlx-16*SC,btly,'rgba(200,112,58,.9)',def.h,null);
+    clearWallT();
   }
 }
 
@@ -2343,17 +2366,21 @@ cv.addEventListener('pointerdown',e=>{
       objs().push(o);sel=null;ghostPx=null;ghostPy=null;
       draw();refreshList();refreshEdit();updateSelActions();snapshot();return;
     }
-    const baseWZ=pages[curP].baseWZ||0;
+    const ti=findHitWall(px,py);
+    const tlen=pages[ti]?(pages[ti].wallLen||W.len):W.len;
+    const baseWZ=(pages[ti]||pages[curP]).baseWZ||0;
+    setWallT(ti);
     const{x:rx,y:ry}=screenToWall(px,py,baseWZ);
-    if(rx<-50||rx>W.len+50||ry<-50||ry>W.h+50){toast(t('clickWall'));return;}
-    let px2=Math.round(Math.max(0,Math.min(W.len-def.w,rx-def.w/2)));
+    clearWallT();
+    if(rx<-50||rx>tlen+50||ry<-50||ry>W.h+50){toast(t('clickWall'));return;}
+    let px2=Math.round(Math.max(0,Math.min(tlen-def.w,rx-def.w/2)));
     let py2=Math.round(Math.max(0,Math.min(W.h-def.h,ry-def.h/2)));
     const sw=snapWall(px2,py2,{id:-1,w:def.w,h:def.h,d:def.d,t:def.t,wz:baseWZ,_p:1});px2=sw.x;py2=sw.y;
     const o=makeObj(def.t,px2,py2,def.w,def.h,def.d,def.color,def.label);
     o.wz=baseWZ;
     if(def.meshKey)o.meshKey=def.meshKey;
     resolveCollision(o);
-    objs().push(o);sel=null;ghostPx=null;ghostPy=null;
+    pages[ti].objs.push(o);sel=null;ghostPx=null;ghostPy=null;
     draw();refreshList();refreshEdit();updateSelActions();snapshot();return;
   }
   const hit=findHitObj(px,py);
